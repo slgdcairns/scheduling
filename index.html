@@ -23,7 +23,7 @@
   .job-count { font-size: 10px; color: #64748b; white-space:nowrap; }
   .alert-banner { background: #fffbeb; border-bottom: 2px solid #f59e0b; padding: 8px 20px; display: flex; gap: 20px; flex-wrap: wrap; }
   .alert-banner span { font-size: 11px; color: #92400e; font-weight: 700; }
-  .diary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 14px; }
+  .diary-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 14px; }
   .day-col { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,.06); display: flex; flex-direction: column; min-height: 320px; }
   .day-col.today { border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
   .day-header { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 10px 12px; border-radius: 10px 10px 0 0; }
@@ -173,6 +173,7 @@
       <span class="week-label" id="week-label"></span>
       <button onclick="nextWeek()">›</button>
       <button class="today-btn" onclick="goToday()">TODAY</button>
+      <div style="display:flex;gap:4px;margin-left:8px" id="runsheet-btns"></div>
       <select id="status-filter" onchange="render()" style="font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid #334155;background:#1e293b;color:#f8fafc;cursor:pointer;">
         <option value="ALL">All statuses</option>
         <option value="REQUESTED">Requested</option>
@@ -495,7 +496,7 @@ function fitterMax(fitter,fJobs){
 }
 function getWeekDays(startIso){
   const d=new Date(startIso+"T00:00:00");
-  return Array.from({length:5},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});
+  return Array.from({length:6},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});
 }
 function getMondayOf(iso){
   const d=new Date(iso+"T00:00:00");const day=d.getDay();
@@ -547,7 +548,9 @@ function buildCertEmail(dayJobs,date){
 // ═══════════════════════════════════════════════════════════════
 function renderDiary(){
   const weekDays=getWeekDays(currentWeekStart);
-  document.getElementById("week-label").textContent=`${formatDate(weekDays[0])} – ${formatDate(weekDays[4])}`;
+  document.getElementById("week-label").textContent=`${formatDate(weekDays[0])} – ${formatDate(weekDays[5])}`;
+  const rsbtns = document.getElementById("runsheet-btns");
+  if (rsbtns) rsbtns.innerHTML = renderFitterRunSheetButtons(currentWeekStart);
   const filterVal=document.getElementById("status-filter").value;
   const today=new Date().toISOString().split("T")[0];
 
@@ -2558,6 +2561,20 @@ function handleImportFile(event) {
     try {
       const data = JSON.parse(e.target.result);
       if (!data._meta) throw new Error('Not a valid Steel-Line data file');
+      // Sanitise all string fields to prevent null errors
+      const clean = (v) => v == null ? '' : String(v);
+      const cleanArr = (arr) => (arr||[]).map(r => {
+        const out = {};
+        Object.keys(r).forEach(k => { out[k] = r[k] == null ? '' : r[k]; });
+        return out;
+      });
+      if (data.jobs)           data.jobs           = cleanArr(data.jobs);
+      if (data.measureJobs)    data.measureJobs    = cleanArr(data.measureJobs);
+      if (data.archiveJobs)    data.archiveJobs    = cleanArr(data.archiveJobs);
+      if (data.handDeliver)    data.handDeliver    = cleanArr(data.handDeliver);
+      if (data.handOnsite)     data.handOnsite     = cleanArr(data.handOnsite);
+      if (data.handRecords)    data.handRecords    = cleanArr(data.handRecords);
+      if (data.builderSummary) data.builderSummary = cleanArr(data.builderSummary);
 
       const exportTime = new Date(data._meta.exportedAt);
       const timeAgo    = formatTimeAgo(exportTime);
@@ -2597,8 +2614,7 @@ function handleImportFile(event) {
       if (typeof spConnected !== 'undefined' && spConnected) {
         setTimeout(() => { if (typeof syncAllToSP === 'function') syncAllToSP(); }, 500);
       } else {
-        if (typeof updateSyncStatus === 'function') updateSyncStatus();
-      }
+        if (typeof updateSyncStatus === 'function') }
     } catch(err) {
       alert('Import failed: ' + err.message + '\n\nMake sure you selected a Steel-Line data export file (.json)');
     }
@@ -2617,28 +2633,10 @@ function formatTimeAgo(date) {
 }
 
 function updateSyncStatus() {
+  // Called with no args from export/import - just refresh display
   const el = document.getElementById('sync-status');
-  if (!el) return;
-  const lastExport = localStorage.getItem('sl_last_export');
-  const lastImport = localStorage.getItem('sl_last_import');
-  const importFrom = localStorage.getItem('sl_last_import_from');
-
-  let parts = [];
-  if (lastImport) {
-    const d = new Date(lastImport);
-    parts.push(`Last import: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}${importFrom?' from '+importFrom:''}`);
-  }
-  if (lastExport) {
-    const d = new Date(lastExport);
-    parts.push(`Last export: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
-  }
-  if (!parts.length) {
-    el.textContent = 'No sync yet — click Export to save data to your shared folder';
-    el.style.color = '#64748b';
-  } else {
-    el.textContent = parts.join('   •   ');
-    el.style.color = '#94a3b8';
-  }
+  if (el && el.textContent === 'Connecting to Supabase...') return;
+  // Don't overwrite live status messages
 }
 
 function showToast(msg) {
@@ -3139,6 +3137,286 @@ function renderLegend() {
     STATUSES.map(s=>`<span class="status-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.val}</span>`).join("") +
     `<span style="font-size:10px;color:#9ca3af;margin-left:8px">Click any status badge to cycle through statuses</span>`;
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+// JOB INTERACTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function toggleCard(id) {
+  const exp = document.getElementById(`expanded-${id}`);
+  const ico = document.getElementById(`icon-${id}`);
+  if (!exp) return;
+  const open = exp.style.display === 'none';
+  exp.style.display = open ? 'block' : 'none';
+  if (ico) ico.textContent = open ? '▲' : '▼';
+}
+
+function cycleStatus(id) {
+  event.stopPropagation();
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  const idx = STATUSES.findIndex(s => s.val === job.status);
+  const oldStatus = job.status;
+  job.status = STATUSES[(idx + 1) % STATUSES.length].val;
+  recordAudit('STATUS_CHANGE', job.jobId||'D'+job.id, 'status', oldStatus, job.status, job.customer);
+  spSaveRecord('jobs', job);
+  persistJobs();
+  render();
+}
+
+function setStatus(id, status) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  const oldStatus = job.status;
+  job.status = status;
+  recordAudit('STATUS_CHANGE', job.jobId||'D'+job.id, 'status', oldStatus, status, job.customer);
+  spSaveRecord('jobs', job);
+  persistJobs();
+  render();
+}
+
+function deleteJob(id) {
+  if (!confirm('Delete this job?')) return;
+  const job = jobs.find(j => j.id === id);
+  recordAudit('DELETE_JOB', job?.jobId||'D'+id, '', '', '', job?.customer||'');
+  if (job?._sbId) spDeleteRecord('jobs', job);
+  jobs = jobs.filter(j => j.id !== id);
+  persistJobs();
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADD / EDIT JOB MODAL
+// ═══════════════════════════════════════════════════════════════
+
+function populateSelects() {
+  document.getElementById('f-fitter').innerHTML  = FITTERS.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+  document.getElementById('f-status').innerHTML  = STATUSES.map(s => `<option value="${s.val}">${s.val}</option>`).join('');
+  document.getElementById('f-customer').innerHTML = `<option value="">Select builder…</option>` + cfg_live.builders.map(b => `<option value="${b}">${b}</option>`).join('');
+  const sorted = [...cfg_live.suburbZones].sort((a,b) => a.suburb.localeCompare(b.suburb));
+  document.getElementById('f-suburb').innerHTML  = `<option value="">Select suburb…</option>` + sorted.map(s => `<option value="${s.suburb}">${s.suburb}</option>`).join('');
+  document.getElementById('f-doorType').innerHTML = cfg_live.doorEfforts.map(d => `<option value="${d.type}">${d.type} (${d.pts}pts)</option>`).join('');
+}
+
+function updateZonePreview() {
+  const suburb = document.getElementById('f-suburb').value;
+  const zone   = getZone(suburb);
+  const el     = document.getElementById('zone-preview');
+  if (!el) return;
+  if (suburb && zone) {
+    const zc = ZONE_COLORS[zone] || ZONE_COLORS['UNKNOWN'];
+    el.style.display = 'block';
+    el.innerHTML = `<strong>Auto-detected zone:</strong> ${zoneTag(zone)}${zone==='UNKNOWN'?` <span style="color:#ef4444;font-size:10px">— suburb not found in zone list</span>`:''}`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function updateEffort() {
+  const dt = document.getElementById('f-doorType').value;
+  document.getElementById('f-effort').value = DOOR_EFFORTS_MAP[dt] || 2;
+}
+
+function openAdd(date) {
+  editingJobId = null;
+  populateSelects();
+  document.getElementById('modal-title-text').textContent = `Add Job — ${formatDate(date)}`;
+  ['fitter','status','customer','address','suburb','doors','sage','doorType','effort','form15','runSheet','contact','builderNotes','internalNotes']
+    .forEach(id => { const el = document.getElementById(`f-${id}`); if (el) el.value = ''; });
+  document.getElementById('f-fitter').value   = FITTERS[0]?.id || '';
+  document.getElementById('f-status').value   = 'REQUESTED';
+  document.getElementById('f-doorType').value = cfg_live.doorEfforts[0]?.type || 'STRUTLOK';
+  document.getElementById('f-effort').value   = cfg_live.doorEfforts[0]?.pts || 2;
+  document.getElementById('f-form15').value   = 'NO';
+  document.getElementById('f-runSheet').value = 'NO';
+  document.getElementById('zone-preview').style.display = 'none';
+  document.getElementById('modal').dataset.date = date;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function openEdit(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  editingJobId = id;
+  populateSelects();
+  document.getElementById('modal-title-text').textContent = `Edit — ${job.customer}`;
+  document.getElementById('f-fitter').value        = job.fitter;
+  document.getElementById('f-status').value        = job.status;
+  document.getElementById('f-customer').value      = job.customer;
+  document.getElementById('f-address').value       = job.address;
+  document.getElementById('f-suburb').value        = job.suburb;
+  document.getElementById('f-doors').value         = job.doors;
+  document.getElementById('f-sage').value          = job.sage || '';
+  document.getElementById('f-doorType').value      = job.doorType || 'STRUTLOK';
+  document.getElementById('f-effort').value        = job.effort || 2;
+  document.getElementById('f-form15').value        = job.form15 || 'NO';
+  document.getElementById('f-runSheet').value      = job.runSheet || 'NO';
+  document.getElementById('f-contact').value       = job.contact || '';
+  document.getElementById('f-builderNotes').value  = job.builderNotes || '';
+  document.getElementById('f-internalNotes').value = job.internalNotes || '';
+  updateZonePreview();
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function saveJob() {
+  const customer = document.getElementById('f-customer').value;
+  const address  = document.getElementById('f-address').value;
+  if (!customer || !address) { alert('Customer and address are required.'); return; }
+  const doorType = document.getElementById('f-doorType').value;
+  const data = {
+    fitter:        document.getElementById('f-fitter').value,
+    status:        document.getElementById('f-status').value,
+    customer, address,
+    suburb:        document.getElementById('f-suburb').value,
+    doors:         document.getElementById('f-doors').value,
+    sage:          document.getElementById('f-sage').value,
+    doorType,
+    effort:        Number(document.getElementById('f-effort').value) || DOOR_EFFORTS_MAP[doorType] || 2,
+    form15:        document.getElementById('f-form15').value,
+    runSheet:      document.getElementById('f-runSheet').value,
+    contact:       document.getElementById('f-contact').value,
+    builderNotes:  document.getElementById('f-builderNotes').value,
+    internalNotes: document.getElementById('f-internalNotes').value,
+  };
+
+  if (editingJobId) {
+    const job = jobs.find(j => j.id === editingJobId);
+    const oldStatus = job.status;
+    Object.assign(job, data);
+    if (data.status !== oldStatus) recordAudit('STATUS_CHANGE', job.jobId||'D'+editingJobId, 'status', oldStatus, data.status, job.customer);
+    recordAudit('EDIT_JOB', job.jobId||'D'+editingJobId, 'edited', '', '', job.customer);
+    spSaveRecord('jobs', job);
+  } else {
+    data.id   = nextId++;
+    data.date = document.getElementById('modal').dataset.date;
+    // Auto-link to measure job if exists
+    const key = (data.customer.toUpperCase().trim() + '|' + data.address.toUpperCase().trim());
+    const linked = measureJobs.find(m => (m.customer.toUpperCase().trim()+'|'+m.address.toUpperCase().trim()) === key);
+    data.jobId = linked ? linked.jobId : `D${data.id}`;
+    jobs.push(data);
+    recordAudit('ADD_JOB', data.jobId, '', '', '', data.customer);
+    spSaveRecord('jobs', data);
+  }
+  persistJobs();
+  closeModalDirect();
+  render();
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal')) closeModalDirect();
+}
+
+function closeModalDirect() {
+  document.getElementById('modal').style.display = 'none';
+  editingJobId = null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FITTER WEEKLY RUN SHEET — printable pay report
+// ═══════════════════════════════════════════════════════════════
+
+function printFitterWeek(fitterId, weekStart) {
+  const weekDays = getWeekDays(weekStart);
+  const fitter   = FITTERS.find(f => f.id === fitterId);
+  const fName    = fitter?.name || fitterId;
+
+  // Get all jobs for this fitter this week
+  const weekJobs = jobs.filter(j => j.fitter === fitterId && weekDays.includes(j.date))
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  const completed    = weekJobs.filter(j => j.status === 'COMPLETED');
+  const futile       = weekJobs.filter(j => j.status === 'FUTILE');
+  const confirmed    = weekJobs.filter(j => j.status === 'CONFIRMED');
+  const rescheduled  = weekJobs.filter(j => j.status === 'RESCHEDULED' || j.status === 'PENDING RESCHEDULE');
+
+  const totalEffort  = completed.reduce((s,j) => s+(Number(j.effort)||0), 0);
+  const futileEffort = futile.reduce((s,j) => s+(Number(j.effort)||0), 0);
+
+  const jobRows = weekJobs.map(j => {
+    const m = getStatusMeta(j.status);
+    return `<tr>
+      <td>${formatDate(j.date)}</td>
+      <td><strong>${j.customer}</strong><br><small>${j.address}, ${j.suburb}</small></td>
+      <td>${j.doors}</td>
+      <td>${j.sage||'—'}</td>
+      <td style="text-align:center">${j.effort}</td>
+      <td><span style="background:${m.bg};color:${m.color};padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700">${j.status}</span></td>
+      <td style="text-align:center">${j.form15==='YES'?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  const printHtml = `<!DOCTYPE html>
+<html>
+<head>
+<title>Run Sheet — ${fName} — Week of ${formatDate(weekStart)}</title>
+<style>
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #1f2937; margin: 20px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { font-size: 14px; color: #6b7280; font-weight: normal; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th { background: #1f2937; color: #fff; padding: 8px; text-align: left; font-size: 11px; }
+  td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .summary { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+  .box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 16px; min-width: 120px; }
+  .box .val { font-size: 24px; font-weight: 900; }
+  .box .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .footer { margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 12px; font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between; }
+  @media print { body { margin: 10px; } }
+</style>
+</head>
+<body>
+  <h1>🗓 Weekly Run Sheet — ${fName}</h1>
+  <h2>Week of ${formatDate(weekStart)} to ${formatDate(weekDays[5]||weekDays[4])} &nbsp;|&nbsp; Steel-Line Cairns</h2>
+
+  <div class="summary">
+    <div class="box"><div class="val" style="color:#166534">${completed.length}</div><div class="lbl">Completed</div></div>
+    <div class="box"><div class="val" style="color:#1d4ed8">${confirmed.length}</div><div class="lbl">Confirmed</div></div>
+    <div class="box"><div class="val" style="color:#991b1b">${futile.length}</div><div class="lbl">Futile</div></div>
+    <div class="box"><div class="val" style="color:#854d0e">${rescheduled.length}</div><div class="lbl">Rescheduled</div></div>
+    <div class="box"><div class="val" style="color:#1d4ed8">${totalEffort.toFixed(1)}</div><div class="lbl">Effort pts (Completed)</div></div>
+    <div class="box"><div class="val" style="color:#991b1b">${futileEffort.toFixed(1)}</div><div class="lbl">Effort pts (Futile)</div></div>
+    <div class="box"><div class="val">${weekJobs.length}</div><div class="lbl">Total Jobs</div></div>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>Date</th>
+      <th>Customer / Address</th>
+      <th>Door Details</th>
+      <th>Sage #</th>
+      <th style="text-align:center">Pts</th>
+      <th>Status</th>
+      <th style="text-align:center">F15</th>
+    </tr></thead>
+    <tbody>${jobRows}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>Generated: ${new Date().toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} at ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}</span>
+    <span>Steel-Line Cairns — Install Scheduling</span>
+  </div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(printHtml);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+// Add print buttons to diary header area
+function renderFitterRunSheetButtons(weekStart) {
+  return FITTERS.map(f =>
+    `<button onclick="printFitterWeek('${f.id}','${weekStart}')"
+      style="background:${f.color};color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">
+      🖨 ${f.name}
+    </button>`
+  ).join('');
+}
+
 
 // INIT
 rebuildLookups();
