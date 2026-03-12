@@ -1,0 +1,3248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steel-Line Install Scheduler</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; min-height: 100vh; font-size: 13px; }
+  .header { background: #0f172a; border-bottom: 3px solid #3b82f6; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; height: 54px; gap: 8px; }
+  .brand { display: flex; flex-direction: column; line-height: 1; }
+  .brand-main { font-size: 16px; font-weight: 900; color: #f8fafc; letter-spacing: .5px; }
+  .brand-sub  { font-size: 9px; font-weight: 600; color: #94a3b8; letter-spacing: 2px; margin-top: 2px; }
+  .divider    { width: 1px; height: 28px; background: #334155; flex-shrink:0; }
+  .nav-btn { font-size: 10px; padding: 4px 8px; border-radius: 5px; cursor: pointer; font-weight: 700; border: none; background: transparent; color: #94a3b8; transition: all .15s; white-space:nowrap; }
+  .nav-btn.active { background: #3b82f6; color: #fff; }
+  .week-nav { display: flex; align-items: center; gap: 8px; }
+  .week-nav button { background: #1e293b; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 13px; }
+  .week-label { font-size: 11px; font-weight: 700; color: #e2e8f0; white-space: nowrap; min-width: 190px; text-align: center; }
+  .today-btn { background: #3b82f6 !important; border-color: #3b82f6 !important; font-size: 10px; font-weight: 800; }
+  .job-count { font-size: 10px; color: #64748b; white-space:nowrap; }
+  .alert-banner { background: #fffbeb; border-bottom: 2px solid #f59e0b; padding: 8px 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .alert-banner span { font-size: 11px; color: #92400e; font-weight: 700; }
+  .diary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 14px; }
+  .day-col { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,.06); display: flex; flex-direction: column; min-height: 320px; }
+  .day-col.today { border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+  .day-header { background: #f8fafc; border-bottom: 1px solid #e5e7eb; padding: 10px 12px; border-radius: 10px 10px 0 0; }
+  .day-col.today .day-header { background: #eff6ff; }
+  .day-name { font-size: 13px; font-weight: 900; color: #1f2937; display: flex; align-items: center; gap: 6px; }
+  .today-tag { font-size: 9px; background: #3b82f6; color: #fff; padding: 1px 5px; border-radius: 3px; font-weight: 800; }
+  .day-date { font-size: 10px; color: #6b7280; margin-top: 1px; }
+  .cap-section { margin-top: 8px; }
+  .cap-row { margin-bottom: 6px; }
+  .cap-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .cap-fitter-name { font-size: 10px; font-weight: 800; }
+  .cap-zones { display: flex; gap: 3px; flex-wrap: wrap; justify-content:flex-end; }
+  .cap-bar-wrap { height: 7px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .cap-bar { height: 100%; border-radius: 4px; transition: width .3s; }
+  .cap-pts { font-size: 9px; font-weight: 800; margin-top: 2px; }
+  .zone-tag { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+  .day-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .btn-sm { font-size: 10px; padding: 3px 9px; border-radius: 5px; cursor: pointer; font-weight: 700; border: none; text-decoration: none; display: inline-block; }
+  .btn-add { background: #1d4ed8; color: #fff; }
+  .btn-cert { background: #7c3aed; color: #fff; }
+  .fitter-section { padding: 8px 10px; }
+  .fitter-header { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; padding-bottom: 4px; margin-bottom: 6px; border-bottom: 2px solid; }
+  .no-jobs { font-size: 10px; color: #d1d5db; font-style: italic; padding: 4px 0; }
+  .job-card { border-radius: 7px; border: 1px solid; border-left: 4px solid; margin-bottom: 6px; overflow: hidden; }
+  .job-card-main { padding: 7px 9px; cursor: pointer; }
+  .job-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+  .job-customer { font-size: 11px; font-weight: 800; color: #111827; line-height: 1.3; }
+  .job-expand-icon { font-size: 11px; color: #9ca3af; flex-shrink: 0; margin-top: 1px; }
+  .job-visual { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; align-items: center; }
+  .door-type-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #374151; color: #fff; letter-spacing: .3px; }
+  .door-type-badge.STRUTLOK { background: #1d4ed8; }
+  .door-type-badge.POSTED   { background: #7c3aed; }
+  .door-type-badge.ROLLER   { background: #065f46; }
+  .door-type-badge.SERVICE  { background: #78350f; }
+  .door-type-badge.CALLBACK { background: #78350f; }
+  .door-type-badge.CUSTOM   { background: #881337; }
+  .door-type-badge.MULTIPLE { background: #374151; }
+  .location-chip { font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 3px; background: #f1f5f9; color: #374151; border: 1px solid #e2e8f0; }
+  .pts-chip { font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 3px; background: #fef9c3; color: #854d0e; }
+  .status-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; cursor: pointer; white-space: nowrap; }
+  .form15-chip { font-size: 9px; background: #e0e7ff; color: #3730a3; padding: 2px 4px; border-radius: 3px; font-weight: 800; }
+  .job-address { font-size: 10px; color: #6b7280; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-alert { background: #fffbeb; padding: 4px 8px; font-size: 10px; color: #92400e; font-weight: 700; border-bottom: 1px solid #fde68a; }
+  .job-expanded { background: #f8fafc; border-top: 1px solid #e5e7eb; padding: 10px 12px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; font-size: 11px; }
+  .detail-item label { color: #9ca3af; font-size: 9px; font-weight: 700; display: block; text-transform: uppercase; margin-bottom: 1px; }
+  .detail-item span { color: #111827; font-weight: 600; }
+  .detail-full { grid-column: 1 / -1; }
+  .note-internal { color: #dc2626 !important; }
+  .status-row { margin-bottom: 10px; }
+  .status-row label { color: #9ca3af; font-size: 9px; font-weight: 700; display: block; margin-bottom: 4px; text-transform: uppercase; }
+  .status-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+  .status-btn { font-size: 9px; padding: 3px 7px; border-radius: 3px; cursor: pointer; font-weight: 700; border: 1px solid; }
+  .action-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-edit   { background: #1d4ed8; color: #fff; border: none; border-radius: 5px; padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+  .btn-email  { background: #065f46; color: #fff; border-radius: 5px; padding: 4px 10px; font-size: 10px; font-weight: 700; text-decoration: none; }
+  .btn-resched{ background: #854d0e; color: #fff; border-radius: 5px; padding: 4px 10px; font-size: 10px; font-weight: 700; text-decoration: none; }
+  .btn-del    { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 5px; padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,.3); }
+  .modal-title { font-size: 15px; font-weight: 900; color: #111827; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .form-field label { font-size: 10px; color: #6b7280; font-weight: 700; display: block; margin-bottom: 3px; text-transform: uppercase; }
+  .form-field input, .form-field select, .form-field textarea { width: 100%; font-size: 11px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-family: inherit; }
+  .form-field.full { grid-column: 1 / -1; }
+  .zone-preview { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px; padding: 6px 10px; font-size: 11px; margin-bottom: 10px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-save   { background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 9px 20px; font-size: 12px; font-weight: 800; cursor: pointer; flex: 1; }
+  .btn-cancel { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 7px; padding: 9px 20px; font-size: 12px; cursor: pointer; }
+  .dashboard { padding: 16px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { border-radius: 10px; padding: 14px 16px; border: 1px solid; }
+  .kpi-val { font-size: 28px; font-weight: 900; }
+  .kpi-label { font-size: 11px; font-weight: 600; margin-top: 3px; color: #374151; }
+  .section-title { font-size: 13px; font-weight: 900; color: #1f2937; margin: 0 0 10px; }
+  .table-wrap { background: #fff; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 20px; overflow-x:auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { padding: 8px 10px; text-align: left; font-weight: 800; font-size: 10px; border-bottom: 1px solid #e5e7eb; white-space:nowrap; }
+  td { padding: 7px 10px; border-top: 1px solid #f3f4f6; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .zone-rules { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom:20px; }
+  .zone-rule { background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; padding: 8px 10px; }
+  .effort-table { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom:20px; }
+  .effort-item { background: #fff; border-radius: 6px; border: 1px solid #e5e7eb; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .effort-pts { font-size: 16px; font-weight: 900; color: #1d4ed8; }
+  .legend { padding: 10px 16px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .legend-label { font-size: 10px; color: #9ca3af; font-weight: 700; }
+  /* ── CONFIG ── */
+  .config-page { padding: 16px; max-width: 1000px; }
+  .config-section { background:#fff; border-radius:10px; border:1px solid #e5e7eb; margin-bottom:20px; overflow:hidden; }
+  .config-section-header { background:#f8fafc; border-bottom:1px solid #e5e7eb; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  .config-section-title { font-size:13px; font-weight:900; color:#1f2937; }
+  .config-section-desc { font-size:11px; color:#6b7280; margin-top:2px; }
+  .config-body { padding:16px; }
+  .config-row { display:grid; gap:10px; margin-bottom:10px; }
+  .config-field label { font-size:10px; color:#6b7280; font-weight:700; display:block; margin-bottom:3px; text-transform:uppercase; }
+  .config-field input, .config-field select { width:100%; font-size:11px; padding:6px 8px; border:1px solid #d1d5db; border-radius:5px; font-family:inherit; }
+  .config-list-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f3f4f6; }
+  .config-list-item input { flex:1; font-size:11px; padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; }
+  .config-list-item select { font-size:11px; padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; }
+  .btn-cfg-del { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; border-radius:4px; padding:3px 8px; font-size:10px; cursor:pointer; font-weight:700; flex-shrink:0; }
+  .btn-cfg-add { background:#f0fdf4; color:#166534; border:1px solid #86efac; border-radius:5px; padding:5px 12px; font-size:11px; cursor:pointer; font-weight:700; margin-top:8px; }
+  .btn-cfg-save { background:#1d4ed8; color:#fff; border:none; border-radius:7px; padding:8px 20px; font-size:12px; font-weight:800; cursor:pointer; }
+  .btn-cfg-reset { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; border-radius:7px; padding:8px 16px; font-size:11px; font-weight:700; cursor:pointer; }
+  .save-toast { position:fixed; bottom:20px; right:20px; background:#166534; color:#fff; padding:10px 18px; border-radius:8px; font-size:12px; font-weight:700; z-index:9999; display:none; box-shadow:0 4px 16px rgba(0,0,0,.2); }
+  .fitter-config-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .fitter-config-card { border:1px solid #e5e7eb; border-radius:8px; padding:12px; }
+  .fitter-config-card label { font-size:10px; color:#6b7280; font-weight:700; display:block; margin-bottom:3px; text-transform:uppercase; }
+  .fitter-config-card input { width:100%; font-size:11px; padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; margin-bottom:8px; }
+  .rate-bar { height:8px; border-radius:4px; transition:width .4s; }
+  /* tab strip inside dashboard */
+  .tab-strip { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid #e5e7eb; padding-bottom:0; }
+  .tab-btn { font-size:11px; padding:6px 14px; border-radius:6px 6px 0 0; border:1px solid transparent; border-bottom:none; cursor:pointer; font-weight:700; background:transparent; color:#6b7280; }
+  .tab-btn.active { background:#fff; color:#1d4ed8; border-color:#e5e7eb; border-bottom-color:#fff; margin-bottom:-2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+      <div class="brand">
+        <span class="brand-main" id="brand-name">STEEL-LINE</span>
+        <span class="brand-sub" id="brand-sub">INSTALL SCHEDULING</span>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;gap:2px;align-items:center;overflow-x:auto;max-width:70vw;scrollbar-width:none;-ms-overflow-style:none">
+        <button class="nav-btn active" id="btn-diary"          onclick="setView('diary')">📅 Diary</button>
+        <button class="nav-btn"        id="btn-dashboard"      onclick="setView('dashboard')">📊 Dashboard</button>
+        <button class="nav-btn"        id="btn-measure"        onclick="setView('measure')">📐 Measure</button>
+        <button class="nav-btn"        id="btn-rto"            onclick="setView('rto')">📦 Ready to Order</button>
+        <button class="nav-btn"        id="btn-archive"        onclick="setView('archive')">🗄 Archive</button>
+        <button class="nav-btn"        id="btn-handdeliver"    onclick="setView('handdeliver')">🔑 Handsets</button>
+        <button class="nav-btn"        id="btn-handonsite"     onclick="setView('handonsite')">📍 Left on Site</button>
+        <button class="nav-btn"        id="btn-handrecords"    onclick="setView('handrecords')">📚 HS Records</button>
+        <button class="nav-btn"        id="btn-reprun"         onclick="setView('reprun')">🗺 Rep Run</button>
+        <button class="nav-btn"        id="btn-certifier"      onclick="setView('certifier')">📋 Certifier</button>
+        <button class="nav-btn"        id="btn-buildersummary" onclick="setView('buildersummary')">🏗 Builder Summary</button>
+        <button class="nav-btn"        id="btn-directory"      onclick="setView('directory')">📞 Directory</button>
+        <button class="nav-btn"        id="btn-stock"          onclick="setView('stock')">🚪 Stock</button>
+        <button class="nav-btn"        id="btn-config"         onclick="setView('config')">⚙ Config</button>
+      </div>
+    </div>
+    <div class="week-nav" id="week-nav">
+      <button onclick="prevWeek()">‹</button>
+      <span class="week-label" id="week-label"></span>
+      <button onclick="nextWeek()">›</button>
+      <button class="today-btn" onclick="goToday()">TODAY</button>
+      <select id="status-filter" onchange="render()" style="font-size:10px;padding:4px 8px;border-radius:5px;border:1px solid #334155;background:#1e293b;color:#f8fafc;cursor:pointer;">
+        <option value="ALL">All statuses</option>
+        <option value="REQUESTED">Requested</option>
+        <option value="CONFIRMED">Confirmed</option>
+        <option value="COMPLETED">Completed</option>
+        <option value="FUTILE">Futile</option>
+        <option value="RESCHEDULED">Rescheduled</option>
+        <option value="PENDING RESCHEDULE">Pending Reschedule</option>
+      </select>
+    </div>
+    <span class="job-count" id="job-count"></span>
+  </div>
+</div>
+
+<div id="alert-banner" class="alert-banner" style="display:none;"></div>
+<div id="app"></div>
+<div class="legend" id="legend"></div>
+<div class="save-toast" id="save-toast">✓ Settings saved</div>
+
+<!-- IMPORT/EXPORT BAR -->
+<div id="sync-bar" style="background:#1e293b;border-bottom:2px solid #334155;padding:6px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+    <span style="color:#94a3b8;font-weight:700;white-space:nowrap">💾 SYNC:</span>
+    <span id="sync-status" style="color:#64748b;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Loading...</span>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+    <button onclick="importData()" style="background:#166534;color:#fff;border:none;border-radius:5px;padding:5px 14px;font-size:11px;font-weight:800;cursor:pointer">📂 Import from file</button>
+    <button onclick="loadAllFromSP().then(()=>render())" style="background:#1d4ed8;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">⟳ Refresh</button>
+    <button onclick="exportData()" style="background:#334155;color:#94a3b8;border:1px solid #475569;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">⬇ Backup</button>
+  </div>
+</div>
+<input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)">
+
+<!-- JOB MODAL -->
+<div class="modal-overlay" id="modal" style="display:none;" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">
+      <span id="modal-title-text">Add Job</span>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-field"><label>Fitter</label><select id="f-fitter"></select></div>
+      <div class="form-field"><label>Status</label><select id="f-status"></select></div>
+      <div class="form-field full"><label>Builder / Customer</label><select id="f-customer"></select></div>
+      <div class="form-field full"><label>Site Address</label><input type="text" id="f-address" placeholder="e.g. LOT 123 SMITH STREET"></div>
+      <div class="form-field"><label>Suburb</label><select id="f-suburb" onchange="updateZonePreview()"></select></div>
+      <div class="form-field"><label>Door Type</label><select id="f-doorType" onchange="updateEffort()"></select></div>
+      <div class="form-field full"><label>Door Details</label><input type="text" id="f-doors" placeholder="e.g. 1X STRUTLOK 2260×5284"></div>
+      <div class="form-field"><label>Sage Order #</label><input type="text" id="f-sage"></div>
+      <div class="form-field"><label>Effort Points</label><input type="number" id="f-effort" step="0.5" min="0.5" max="20"></div>
+      <div class="form-field"><label>Form 15/43</label><select id="f-form15"><option>NO</option><option>YES</option></select></div>
+      <div class="form-field"><label>Run Sheet</label><select id="f-runSheet"><option>NO</option><option>YES</option></select></div>
+      <div class="form-field"><label>Contacted Via</label><input type="text" id="f-contact" placeholder="SMS / email / phone"></div>
+    </div>
+    <div id="zone-preview" class="zone-preview" style="display:none;"></div>
+    <div class="form-grid">
+      <div class="form-field full"><label>Builder Notes (visible to fitter)</label><textarea id="f-builderNotes" rows="2"></textarea></div>
+      <div class="form-field full"><label>Internal Notes (Steel-Line only)</label><textarea id="f-internalNotes" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-save" onclick="saveJob()">Save Job</button>
+      <button class="btn-cancel" onclick="closeModalDirect()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DEFAULT CONFIG — branches edit this via the Config page
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_CONFIG = {
+  branchName: "Steel-Line Cairns",
+  certifierEmail: "rebeccasmith@steel-line.com.au",
+  fitters: [
+    { id:"dean",  name:"Dean",  maxLocal:7, maxAway:5, color:"#1e40af" },
+    { id:"ethan", name:"Ethan", maxLocal:5, maxAway:5, color:"#065f46" },
+    { id:"glenn", name:"Glenn", maxLocal:4, maxAway:4, color:"#7c2d12" },
+  ],
+  doorEfforts: [
+    {type:"STRUTLOK",    pts:2   },
+    {type:"POSTED",      pts:2.5 },
+    {type:"C2 ROLLER",   pts:1   },
+    {type:"STD ROLLER",  pts:0.5 },
+    {type:"CUSTOM",      pts:6   },
+    {type:"STD SECTIONAL",pts:0.5},
+    {type:"PANEL CHANGE",pts:0.5 },
+    {type:"CALLBACK",    pts:0.5 },
+    {type:"SERVICE",     pts:0.5 },
+    {type:"TAKE DOWN",   pts:0.5 },
+    {type:"CW SHUTTER",  pts:2   },
+    {type:"MULTIPLE",    pts:2   },
+    {type:"UNKNOWN",     pts:2   },
+  ],
+  zoneGroups: [
+    { zone:"SOUTH LOCAL",       canMix:["SOUTH LOCAL","CENTRAL"] },
+    { zone:"CENTRAL",           canMix:["SOUTH LOCAL","CENTRAL","NORTH LOCAL"] },
+    { zone:"NORTH LOCAL",       canMix:["NORTH LOCAL","CENTRAL"] },
+    { zone:"SOUTH OUT OF TOWN", canMix:["SOUTH OUT OF TOWN"] },
+    { zone:"NORTH OUT OF TOWN", canMix:["NORTH OUT OF TOWN"] },
+    { zone:"TABLELANDS",        canMix:["TABLELANDS","TABLELANDS NORTH"] },
+    { zone:"TABLELANDS NORTH",  canMix:["TABLELANDS","TABLELANDS NORTH"] },
+  ],
+  suburbZones: [
+    {suburb:"EDMONTON",zone:"SOUTH LOCAL"},{suburb:"BENTLEY PARK",zone:"SOUTH LOCAL"},
+    {suburb:"GORDONVALE",zone:"SOUTH LOCAL"},{suburb:"GOLDSBOROUGH",zone:"SOUTH LOCAL"},
+    {suburb:"MOUNT SHERIDAN",zone:"SOUTH LOCAL"},{suburb:"WHITE ROCK",zone:"SOUTH LOCAL"},
+    {suburb:"WOREE",zone:"SOUTH LOCAL"},{suburb:"BAYVIEW HEIGHTS",zone:"SOUTH LOCAL"},
+    {suburb:"ALOOMBA",zone:"SOUTH LOCAL"},{suburb:"MOUNT PETER",zone:"SOUTH LOCAL"},
+    {suburb:"DARADGEE",zone:"SOUTH LOCAL"},
+    {suburb:"PALM COVE",zone:"NORTH LOCAL"},{suburb:"CLIFTON BEACH",zone:"NORTH LOCAL"},
+    {suburb:"KEWARRA BEACH",zone:"NORTH LOCAL"},{suburb:"TRINITY BEACH",zone:"NORTH LOCAL"},
+    {suburb:"TRINITY PARK",zone:"NORTH LOCAL"},{suburb:"SMITHFIELD",zone:"NORTH LOCAL"},
+    {suburb:"CARAVONICA",zone:"NORTH LOCAL"},{suburb:"REDLYNCH",zone:"NORTH LOCAL"},
+    {suburb:"BRINSMEAD",zone:"NORTH LOCAL"},{suburb:"FRESHWATER",zone:"NORTH LOCAL"},
+    {suburb:"YORKEYS KNOB",zone:"NORTH LOCAL"},{suburb:"KAMERUNGA",zone:"NORTH LOCAL"},
+    {suburb:"HOLLOWAYS BEACH",zone:"NORTH LOCAL"},{suburb:"MACHANS BEACH",zone:"NORTH LOCAL"},
+    {suburb:"CAIRNS",zone:"CENTRAL"},{suburb:"STRATFORD",zone:"CENTRAL"},
+    {suburb:"AEROGLEN",zone:"CENTRAL"},{suburb:"EDGE HILL",zone:"CENTRAL"},
+    {suburb:"KANIMBLA",zone:"CENTRAL"},{suburb:"MOOROOBOOL",zone:"CENTRAL"},
+    {suburb:"MANUNDA",zone:"CENTRAL"},{suburb:"BUNGALOW",zone:"CENTRAL"},
+    {suburb:"EARLVILLE",zone:"CENTRAL"},{suburb:"WESTCOURT",zone:"CENTRAL"},
+    {suburb:"MANOORA",zone:"CENTRAL"},{suburb:"WHITFIELD",zone:"CENTRAL"},
+    {suburb:"CARDWELL",zone:"SOUTH OUT OF TOWN"},{suburb:"TULLY",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"INNISFAIL",zone:"SOUTH OUT OF TOWN"},{suburb:"MISSION BEACH",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"WONGALING BEACH",zone:"SOUTH OUT OF TOWN"},{suburb:"KURRIMINE BEACH",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"ETTY BAY",zone:"SOUTH OUT OF TOWN"},{suburb:"MIRRIWINNI",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"FISHERY FALLS",zone:"SOUTH OUT OF TOWN"},{suburb:"BABINDA",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"DEERAL",zone:"SOUTH OUT OF TOWN"},{suburb:"SILKWOOD",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"EL ARISH",zone:"SOUTH OUT OF TOWN"},{suburb:"SOUTH MISSION BEACH",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"COWLEY BEACH",zone:"SOUTH OUT OF TOWN"},{suburb:"MOURILYAN",zone:"SOUTH OUT OF TOWN"},
+    {suburb:"PORT DOUGLAS",zone:"NORTH OUT OF TOWN"},{suburb:"MOSSMAN",zone:"NORTH OUT OF TOWN"},
+    {suburb:"COOYA BEACH",zone:"NORTH OUT OF TOWN"},{suburb:"BONNIE DOON",zone:"NORTH OUT OF TOWN"},
+    {suburb:"WONGA BEACH",zone:"NORTH OUT OF TOWN"},{suburb:"MIALLO",zone:"NORTH OUT OF TOWN"},
+    {suburb:"ROCKY POINT",zone:"NORTH OUT OF TOWN"},{suburb:"OAK BEACH",zone:"NORTH OUT OF TOWN"},
+    {suburb:"ELLIS BEACH",zone:"NORTH OUT OF TOWN"},
+    {suburb:"MAREEBA",zone:"TABLELANDS NORTH"},{suburb:"KURANDA",zone:"TABLELANDS NORTH"},
+    {suburb:"ATHERTON",zone:"TABLELANDS"},{suburb:"MALANDA",zone:"TABLELANDS"},
+    {suburb:"PEERAMON",zone:"TABLELANDS"},{suburb:"YUNGABURRA",zone:"TABLELANDS"},
+    {suburb:"TOLGA",zone:"TABLELANDS"},{suburb:"TINAROO",zone:"TABLELANDS"},
+    {suburb:"BARRINE",zone:"TABLELANDS"},{suburb:"LAKE EACHAM",zone:"TABLELANDS"},
+    {suburb:"UTCHEE CREEK",zone:"TABLELANDS"},{suburb:"WANGAN",zone:"SOUTH OUT OF TOWN"},
+  ],
+  builders: [
+    "ALLARO HOMES","ALLARO HOMES (BOTANICA)","AUSTART HOMES","BRIDGEWATER BUILDERS",
+    "COUGAR HOMES","DIXON HOMES","EQUITY RED","GJ GARDNER","HEDLEY HOMES",
+    "HPS","HUNT CONSTRUCTIONS","JAJD","JAMES LANGTREE","KCA","KENFROST",
+    "MAC CONSTRUCTIONS","MYSTYLE HOMES","PAUL SABADINA","RICHARDSONS BUILDING",
+    "TOM HEDLEY CONSTRUCTIONS","TROPIC COAST HOMES","VALUE HOMES","SHEDCO",
+    "TAILORED HOMES","FRESHWATER BUILDERS","RYAN CASEY CONSTRUCTIONS",
+    "CHW","CAIRNS HARDWARE","BEN AUDEN CONST","BRETT BETTINI BUILDERS",
+    "CORICA CONSTRUCTIONS","SERVICE","CALL BACK","OTHER",
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════════
+// LOAD CONFIG FROM localStorage (falls back to defaults)
+// ═══════════════════════════════════════════════════════════════
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem("sl_config");
+    return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_CONFIG)); }
+}
+function saveConfig(cfg) {
+  localStorage.setItem("sl_config", JSON.stringify(cfg));
+  cfg_live = cfg;
+  rebuildLookups();
+}
+function loadJobs() {
+  try {
+    const saved = localStorage.getItem("sl_jobs");
+    return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(SEED_JOBS));
+  } catch(e) { return JSON.parse(JSON.stringify(SEED_JOBS)); }
+}
+function persistJobs() {
+  localStorage.setItem("sl_jobs", JSON.stringify(jobs));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODULE DATA LOADERS — localStorage with WORKBOOK_SEED fallback
+// ═══════════════════════════════════════════════════════════════
+function loadMod(key, seedKey) {
+  try {
+    const saved = localStorage.getItem('sl_' + key);
+    if (saved) return JSON.parse(saved);
+    // Fall back to WORKBOOK_SEED if available, otherwise empty array
+    if (typeof WORKBOOK_SEED !== 'undefined' && WORKBOOK_SEED[seedKey]) {
+      return JSON.parse(JSON.stringify(WORKBOOK_SEED[seedKey]));
+    }
+    return [];
+  } catch(e) {
+    if (typeof WORKBOOK_SEED !== 'undefined' && WORKBOOK_SEED[seedKey]) {
+      return JSON.parse(JSON.stringify(WORKBOOK_SEED[seedKey]));
+    }
+    return [];
+  }
+}
+
+function saveMod(key, data) {
+  try {
+    localStorage.setItem('sl_' + key, JSON.stringify(data));
+  } catch(e) {
+    console.warn('saveMod failed for', key, e);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// SEED DATA
+// ═══════════════════════════════════════════════════════════════
+const SEED_JOBS = [
+  {id:1, date:"2026-03-16",fitter:"dean", customer:"VALUE HOMES",            address:"LOT 2617 WHYAMBEEL CHASE",   suburb:"SMITHFIELD",   doors:"1X STRUTLOK 2250×5228",          sage:"1141SON260300001",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"",                  internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:2, date:"2026-03-16",fitter:"ethan",customer:"ALLARO HOMES (BOTANICA)",address:"LOT 220 GREYGUM AVENUE",    suburb:"CARAVONICA",   doors:"1X STRUTLOK 2350×4960",          sage:"1141SON260300058",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"GILLY - ready",    internalNotes:"",          contact:"SMS",doorType:"STRUTLOK",effort:2  },
+  {id:3, date:"2026-03-16",fitter:"glenn",customer:"HUNT CONSTRUCTIONS",     address:"LOT 45 ALLAMANDA RISE",     suburb:"BRINSMEAD",    doors:"1X STRUTLOK + 3X POSTED + 1X C2",sage:"1141SON260200161",status:"CONFIRMED",         form15:"NO", runSheet:"YES",builderNotes:"BRETT 0410 289 559",internalNotes:"5 doors - scissor?",contact:"",   doorType:"MULTIPLE",effort:12 },
+  {id:4, date:"2026-03-17",fitter:"dean", customer:"GJ GARDNER",             address:"LOT 72 PATRICIA STREET",    suburb:"PEERAMON",     doors:"1X STRUTLOK 2350×4813",          sage:"1141SON260300005",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"JOHN 0499 655 115",internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:5, date:"2026-03-17",fitter:"ethan",customer:"COUGAR HOMES",           address:"LOT 249 SALVATORE DRIVE",   suburb:"GORDONVALE",   doors:"1X STRUTLOK 2250×5204",          sage:"1141SON260200160",status:"REQUESTED",         form15:"NO", runSheet:"NO", builderNotes:"DARRYN",            internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:6, date:"2026-03-17",fitter:"glenn",customer:"KENFROST",               address:"LOT 11 FLAGSTAFF WAY",      suburb:"WHITE ROCK",   doors:"1X STRUTLOK",                    sage:"1141SON260200121",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"SOPHIE",            internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:7, date:"2026-03-19",fitter:"dean", customer:"VALUE HOMES",            address:"LOT 534 HUEY DRIVE",        suburb:"EDMONTON",     doors:"1X STRUTLOK 2230×5215",          sage:"1141SON260300004",status:"RESCHEDULED",       form15:"YES",runSheet:"YES",builderNotes:"Buller - push 1wk", internalNotes:"DOOR HERE", contact:"SMS",doorType:"STRUTLOK",effort:2  },
+  {id:8, date:"2026-03-19",fitter:"ethan",customer:"ALLARO HOMES (BOTANICA)",address:"LOT 248 GHOSTGUM CRESCENT", suburb:"CARAVONICA",   doors:"1X STRUTLOK 2355×4955",          sage:"1141SON260200157",status:"COMPLETED",         form15:"YES",runSheet:"YES",builderNotes:"",                  internalNotes:"Form sent", contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:9, date:"2026-03-19",fitter:"glenn",customer:"SHEDCO - BOLTON",        address:"10 FOXWOOD AVENUE",         suburb:"WANGAN",       doors:"1X C2 ROLLER 3000×3300 + 1X C2", sage:"9041SON260100004",status:"COMPLETED",         form15:"YES",runSheet:"YES",builderNotes:"LEESHA 0437 110 239",internalNotes:"",         contact:"",   doorType:"C2 ROLLER",effort:2  },
+  {id:10,date:"2026-03-20",fitter:"dean", customer:"KENFROST",               address:"LOT 2 DENVER STREET",       suburb:"WHITE ROCK",   doors:"1X STRUTLOK",                    sage:"1141SON260300007",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"ROB 0458 682 046",  internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:11,date:"2026-03-20",fitter:"ethan",customer:"VALUE HOMES",            address:"LOT 144 SHEOAK DRIVE",      suburb:"BENTLEY PARK", doors:"1X STRUTLOK 2245×5200",          sage:"1141SON260300003",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"",                  internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:12,date:"2026-03-20",fitter:"glenn",customer:"KENFROST",               address:"LOT 1 DENVER STREET",       suburb:"WHITE ROCK",   doors:"1X STRUTLOK",                    sage:"1141SON260300006",status:"FUTILE",            form15:"NO", runSheet:"NO", builderNotes:"Site locked - no access",internalNotes:"Builder fault - site not ready",contact:"",doorType:"STRUTLOK",effort:2},
+  {id:13,date:"2026-03-24",fitter:"dean", customer:"DIXON HOMES",            address:"LOT 142 SHEOAK DRIVE",      suburb:"BENTLEY PARK", doors:"1X STRUTLOK 2240×5190",          sage:"1141SON260300052",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"ERWIN 0456 008 693",internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:14,date:"2026-03-24",fitter:"ethan",customer:"ALLARO HOMES",           address:"LOT 249 GHOSTGUM CRESCENT", suburb:"CARAVONICA",   doors:"1X STRUTLOK 2360×4960",          sage:"1141SON260200138",status:"CONFIRMED",         form15:"YES",runSheet:"YES",builderNotes:"",                  internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:15,date:"2026-03-24",fitter:"glenn",customer:"MAC CONSTRUCTIONS",      address:"LOT 308 SALVATORE DRIVE",   suburb:"GORDONVALE",   doors:"2X STRUTLOK 2230×5207",          sage:"9041SON260200015",status:"FUTILE",            form15:"NO", runSheet:"NO", builderNotes:"Painters still in garage",internalNotes:"2nd futile - MAC needs warning",contact:"",doorType:"STRUTLOK",effort:4},
+  {id:16,date:"2026-03-25",fitter:"dean", customer:"KENFROST",               address:"LOT 95 TURANGA RISE",       suburb:"MOUNT SHERIDAN",doors:"1X STRUTLOK",                   sage:"1141SON260300053",status:"PENDING RESCHEDULE",form15:"NO", runSheet:"NO", builderNotes:"Sophie - March",    internalNotes:"",          contact:"",   doorType:"STRUTLOK",effort:2  },
+  {id:17,date:"2026-03-25",fitter:"ethan",customer:"VALUE HOMES",            address:"LOT 252 SALVATORE DRIVE",   suburb:"GORDONVALE",   doors:"1X STRUTLOK 2245×5207",          sage:"1141SON260200140",status:"RESCHEDULED",       form15:"YES",runSheet:"YES",builderNotes:"Buller - not ready",internalNotes:"We rescheduled - door not in",contact:"",doorType:"STRUTLOK",effort:2},
+  {id:18,date:"2026-03-25",fitter:"glenn",customer:"QUALITY SHEDS - WAYNE",  address:"9 ANDREWS ROAD",            suburb:"BARRINE",      doors:"4X C2 ROLLER 3000×3250",         sage:"9041SON250900014",status:"CONFIRMED",         form15:"NO", runSheet:"YES",builderNotes:"JOEL 0419 721 229",  internalNotes:"",          contact:"",   doorType:"C2 ROLLER",effort:4  },
+];
+
+// ═══════════════════════════════════════════════════════════════
+// RUNTIME STATE
+// ═══════════════════════════════════════════════════════════════
+let cfg_live = loadConfig();
+let jobs = loadJobs();
+let nextId = Math.max(0,...jobs.map(j=>j.id)) + 1;
+let currentWeekStart = getMondayOf("2026-03-16");
+let currentView = "diary";
+let editingJobId = null;
+let dashTab = "builders";
+
+// Derived lookups rebuilt whenever config changes
+let FITTERS, DOOR_EFFORTS_MAP, ZONE_GROUPS_MAP, SUBURB_ZONE_MAP;
+function rebuildLookups() {
+  FITTERS = cfg_live.fitters;
+  DOOR_EFFORTS_MAP = {};
+  cfg_live.doorEfforts.forEach(d=>{ DOOR_EFFORTS_MAP[d.type]=d.pts; });
+  ZONE_GROUPS_MAP = {};
+  cfg_live.zoneGroups.forEach(z=>{ ZONE_GROUPS_MAP[z.zone]=z.canMix; });
+  SUBURB_ZONE_MAP = {};
+  cfg_live.suburbZones.forEach(s=>{ SUBURB_ZONE_MAP[s.suburb.toUpperCase()]=s.zone; });
+  // update brand
+  const bn = document.getElementById("brand-name");
+  if (bn) bn.textContent = cfg_live.branchName || "STEEL-LINE";
+}
+rebuildLookups();
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+const STATUSES = [
+  {val:"REQUESTED",          color:"#64748b",bg:"#f1f5f9",border:"#cbd5e1"},
+  {val:"CONFIRMED",          color:"#1d4ed8",bg:"#dbeafe",border:"#93c5fd"},
+  {val:"COMPLETED",          color:"#166534",bg:"#dcfce7",border:"#86efac"},
+  {val:"FUTILE",             color:"#991b1b",bg:"#fee2e2",border:"#fca5a5"},
+  {val:"RESCHEDULED",        color:"#854d0e",bg:"#fef9c3",border:"#fde68a"},
+  {val:"PENDING RESCHEDULE", color:"#7c3aed",bg:"#ede9fe",border:"#c4b5fd"},
+];
+const ZONE_COLORS = {
+  "SOUTH LOCAL":       {bg:"#fef9c3",c:"#854d0e"},
+  "NORTH LOCAL":       {bg:"#dbeafe",c:"#1e40af"},
+  "CENTRAL":           {bg:"#e0e7ff",c:"#3730a3"},
+  "SOUTH OUT OF TOWN": {bg:"#fee2e2",c:"#991b1b"},
+  "NORTH OUT OF TOWN": {bg:"#fce7f3",c:"#9d174d"},
+  "TABLELANDS":        {bg:"#d1fae5",c:"#065f46"},
+  "TABLELANDS NORTH":  {bg:"#a7f3d0",c:"#064e3b"},
+  "UNKNOWN":           {bg:"#f3f4f6",c:"#6b7280"},
+};
+
+function getZone(suburb){ return SUBURB_ZONE_MAP[(suburb||"").toUpperCase().trim()]||"UNKNOWN"; }
+function getStatusMeta(v){ return STATUSES.find(s=>s.val===v)||STATUSES[0]; }
+function zonesCompatible(zones){
+  const u=[...new Set(zones.filter(z=>z&&z!=="UNKNOWN"))];
+  if(u.length<=1)return true;
+  const allowed=ZONE_GROUPS_MAP[u[0]]||[u[0]];
+  return u.every(z=>allowed.includes(z));
+}
+function fitterUsed(fJobs){ return fJobs.filter(j=>j.status!=="RESCHEDULED"&&j.status!=="FUTILE").reduce((s,j)=>s+(Number(j.effort)||0),0); }
+function fitterMax(fitter,fJobs){
+  const zones=fJobs.filter(j=>j.status!=="RESCHEDULED"&&j.status!=="FUTILE").map(j=>getZone(j.suburb));
+  const isAway=zones.some(z=>z&&(z.includes("OUT OF TOWN")||z.includes("TABLELANDS")));
+  return isAway?fitter.maxAway:fitter.maxLocal;
+}
+function getWeekDays(startIso){
+  const d=new Date(startIso+"T00:00:00");
+  return Array.from({length:5},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});
+}
+function getMondayOf(iso){
+  const d=new Date(iso+"T00:00:00");const day=d.getDay();
+  d.setDate(d.getDate()-(day===0?6:day-1));return d.toISOString().split("T")[0];
+}
+function formatDate(iso){ return new Date(iso+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"}); }
+function formatDateLong(iso){ return new Date(iso+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); }
+function getDTClass(dt){
+  const t=(dt||"").toUpperCase();
+  if(t==="STRUTLOK")return "STRUTLOK";if(t==="POSTED")return "POSTED";
+  if(t.includes("ROLLER"))return "ROLLER";if(t==="SERVICE")return "SERVICE";
+  if(t==="CALLBACK")return "CALLBACK";if(t==="CUSTOM")return "CUSTOM";
+  if(t==="MULTIPLE")return "MULTIPLE";return "";
+}
+function zoneTag(zone){
+  const zc=ZONE_COLORS[zone]||ZONE_COLORS["UNKNOWN"];
+  return `<span class="zone-tag" style="background:${zc.bg};color:${zc.c}">${zone}</span>`;
+}
+function statusBadge(job,click=false){
+  const m=getStatusMeta(job.status);
+  return `<span class="status-badge" style="background:${m.bg};color:${m.color};border:1px solid ${m.border}" ${click?`onclick="cycleStatus(${job.id})" title="Click to change"`:""}>${m.val}</span>`;
+}
+function buildBuilderEmail(job){
+  const s=encodeURIComponent(`Install Update – ${job.customer} – ${job.address}`);
+  const b=encodeURIComponent(`Hi,\n\nUpdate for your garage door installation:\n\nCustomer: ${job.customer}\nAddress: ${job.address}, ${job.suburb}\nDoor: ${job.doors}\nSage Order: ${job.sage||"TBC"}\nDate: ${formatDateLong(job.date)}\nStatus: ${job.status}\n${job.builderNotes?"\nNotes: "+job.builderNotes+"\n":""}\nRegards,\n${cfg_live.branchName||"Steel-Line"} Scheduling`);
+  return `mailto:?subject=${s}&body=${b}`;
+}
+function buildReschedEmail(job){
+  const s=encodeURIComponent(`Reschedule Required – ${job.customer} – ${job.address}`);
+  const b=encodeURIComponent(`Hi,\n\nWe need to reschedule the following installation:\n\nCustomer: ${job.customer}\nAddress: ${job.address}, ${job.suburb}\nDoor: ${job.doors}\nOriginal Date: ${formatDateLong(job.date)}\nReason: ${job.builderNotes||"Site not ready"}\n\nWe will be in touch shortly to confirm a new date.\n\nRegards,\n${cfg_live.branchName||"Steel-Line"} Scheduling`);
+  return `mailto:?subject=${s}&body=${b}`;
+}
+function buildFutileEmail(job){
+  const s=encodeURIComponent(`Futile Visit – Charges May Apply – ${job.customer} – ${job.address}`);
+  const b=encodeURIComponent(`Hi,\n\nUnfortunately our fitter attended the following site today and was unable to complete the installation:\n\nCustomer: ${job.customer}\nAddress: ${job.address}, ${job.suburb}\nDate: ${formatDateLong(job.date)}\nDoor: ${job.doors}\nReason: ${job.builderNotes||"Site not accessible / not ready"}\n\nPlease note that a futile visit charge may apply as the site was not ready at the agreed time.\n\nPlease contact us to reschedule at your earliest convenience.\n\nRegards,\n${cfg_live.branchName||"Steel-Line"} Scheduling`);
+  return `mailto:?subject=${s}&body=${b}`;
+}
+function buildCertEmail(dayJobs,date){
+  const el=dayJobs.filter(j=>(j.status==="CONFIRMED"||j.status==="COMPLETED")&&j.form15==="YES");
+  if(!el.length)return null;
+  const s=encodeURIComponent(`Certifier Forms Required – ${formatDateLong(date)}`);
+  const lines=el.map(j=>`• ${j.customer} – ${j.address}, ${j.suburb}\n  Sage: ${j.sage||"TBC"} | Fitter: ${(j.fitter||"").toUpperCase()} | Doors: ${j.doors}`).join("\n\n");
+  const b=encodeURIComponent(`Hi,\n\nForm 15/43 required for ${formatDateLong(date)}:\n\n${lines}\n\nRegards,\n${cfg_live.branchName||"Steel-Line"} Scheduling`);
+  return `mailto:${cfg_live.certifierEmail||""}?subject=${s}&body=${b}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER DIARY
+// ═══════════════════════════════════════════════════════════════
+function renderDiary(){
+  const weekDays=getWeekDays(currentWeekStart);
+  document.getElementById("week-label").textContent=`${formatDate(weekDays[0])} – ${formatDate(weekDays[4])}`;
+  const filterVal=document.getElementById("status-filter").value;
+  const today=new Date().toISOString().split("T")[0];
+
+  // week alerts
+  const weekAlerts=[];
+  weekDays.forEach(date=>{
+    const dj=jobs.filter(j=>j.date===date);
+    FITTERS.forEach(f=>{
+      const fj=dj.filter(j=>j.fitter===f.id);
+      const used=fitterUsed(fj),max=fitterMax(f,fj);
+      const zones=[...new Set(fj.filter(j=>j.status!=="RESCHEDULED"&&j.status!=="FUTILE").map(j=>getZone(j.suburb)).filter(Boolean))];
+      if(used>max) weekAlerts.push(`${formatDate(date)}: ${f.name} over capacity (${used.toFixed(1)}/${max}pts)`);
+      if(!zonesCompatible(zones)) weekAlerts.push(`${formatDate(date)}: ${f.name} – zone conflict`);
+    });
+  });
+  const banner=document.getElementById("alert-banner");
+  if(weekAlerts.length){banner.style.display="flex";banner.innerHTML=weekAlerts.map(a=>`<span>⚠ ${a}</span>`).join("");}
+  else banner.style.display="none";
+
+  let html=`<div class="diary-grid">`;
+  weekDays.forEach(date=>{
+    const allDJ=jobs.filter(j=>j.date===date);
+    const visDJ=filterVal==="ALL"?allDJ:allDJ.filter(j=>j.status===filterVal);
+    const isToday=date===today;
+    const certLink=buildCertEmail(allDJ,date);
+
+    const capHtml=FITTERS.map(f=>{
+      const fj=allDJ.filter(j=>j.fitter===f.id);
+      const used=fitterUsed(fj),max=fitterMax(f,fj);
+      const pct=Math.min(100,(used/max)*100);
+      const over=used>max,warn=used>=max*.85;
+      const barColor=over?"#ef4444":warn?"#f59e0b":f.color;
+      const ptsColor=over?"#ef4444":warn?"#b45309":"#374151";
+      const zones=[...new Set(fj.filter(j=>j.status!=="RESCHEDULED"&&j.status!=="FUTILE").map(j=>getZone(j.suburb)).filter(Boolean))];
+      const zoneOk=zonesCompatible(zones);
+      return `<div class="cap-row">
+        <div class="cap-label-row">
+          <span class="cap-fitter-name" style="color:${f.color}">${f.name}</span>
+          <div class="cap-zones">${zones.map(z=>zoneTag(z)).join("")}${!zoneOk?'<span style="font-size:9px;color:#ef4444;font-weight:800">⚠</span>':""}</div>
+        </div>
+        <div class="cap-bar-wrap"><div class="cap-bar" style="width:${pct}%;background:${barColor}"></div></div>
+        <div class="cap-pts" style="color:${ptsColor}">${used.toFixed(1)} / ${max} pts${over?" — OVER!":""}</div>
+      </div>`;
+    }).join("");
+
+    const jobsHtml=FITTERS.map(f=>{
+      const fj=visDJ.filter(j=>j.fitter===f.id);
+      const cards=fj.map(job=>{
+        const zone=getZone(job.suburb);
+        const otherZones=allDJ.filter(j=>j.fitter===f.id&&j.id!==job.id&&j.status!=="RESCHEDULED"&&j.status!=="FUTILE").map(j=>getZone(j.suburb));
+        const zoneConflict=!zonesCompatible([zone,...otherZones]);
+        const m=getStatusMeta(job.status);
+        const dtClass=getDTClass(job.doorType);
+        const alerts=[];
+        if(zoneConflict) alerts.push(`Zone conflict: ${zone} incompatible with day's zones`);
+        if(!job.sage)    alerts.push("No Sage order number");
+        if(job.status==="CONFIRMED"&&job.form15!=="YES") alerts.push("Form 15/43 not marked YES");
+        const isFutile=job.status==="FUTILE";
+        const isResched=job.status==="RESCHEDULED"||job.status==="PENDING RESCHEDULE";
+        return `<div class="job-card" style="background:${m.bg};border-color:${m.border};border-left-color:${m.color}">
+          ${alerts.map(a=>`<div class="card-alert">⚠ ${a}</div>`).join("")}
+          <div class="job-card-main" onclick="toggleCard(${job.id})">
+            <div class="job-card-top">
+              <div style="flex:1;min-width:0">
+                <div class="job-customer">${job.customer}</div>
+                <div class="job-address">📍 ${job.address}</div>
+              </div>
+              <span class="job-expand-icon" id="icon-${job.id}">▼</span>
+            </div>
+            <div class="job-visual">
+              <span class="door-type-badge ${dtClass}">${job.doorType||"UNKNOWN"}</span>
+              <span class="location-chip">🏘 ${job.suburb}</span>
+              ${zoneTag(zone)}
+              ${statusBadge(job,true)}
+              <span class="pts-chip">${job.effort}pts</span>
+              ${job.form15==="YES"?'<span class="form15-chip">F15</span>':""}
+            </div>
+            <div style="font-size:10px;color:#374151;margin-top:4px;font-weight:500">🚪 ${job.doors}</div>
+            ${job.builderNotes?`<div style="font-size:10px;color:#6b7280;margin-top:2px">💬 ${job.builderNotes}</div>`:""}
+          </div>
+          <div class="job-expanded" id="expanded-${job.id}" style="display:none">
+            <div class="detail-grid">
+              <div class="detail-item"><label>Sage Order</label><span>${job.sage||"—"}</span></div>
+              <div class="detail-item"><label>Contact Via</label><span>${job.contact||"—"}</span></div>
+              <div class="detail-item"><label>Form 15/43</label><span>${job.form15||"—"}</span></div>
+              <div class="detail-item"><label>Run Sheet</label><span>${job.runSheet||"—"}</span></div>
+              ${job.builderNotes?`<div class="detail-item detail-full"><label>Builder Notes</label><span>${job.builderNotes}</span></div>`:""}
+              ${job.internalNotes?`<div class="detail-item detail-full"><label>Internal Notes</label><span class="note-internal">${job.internalNotes}</span></div>`:""}
+            </div>
+            <div class="status-row"><label>Change status:</label>
+              <div class="status-btns">${STATUSES.map(s=>`<button class="status-btn" onclick="setStatus(${job.id},'${s.val}')" style="background:${job.status===s.val?s.color:s.bg};color:${job.status===s.val?"#fff":s.color};border-color:${s.border}">${s.val}</button>`).join("")}</div>
+            </div>
+            <div class="action-row">
+              <button class="btn-edit" onclick="openEdit(${job.id})">✏ Edit</button>
+              <a class="btn-email" href="${buildBuilderEmail(job)}">📧 Builder Update</a>
+              ${isFutile?`<a class="btn-resched" style="background:#991b1b" href="${buildFutileEmail(job)}">📧 Futile Notice</a>`:""}
+              ${isResched?`<a class="btn-resched" href="${buildReschedEmail(job)}">📧 Reschedule Notice</a>`:""}
+              <button class="btn-del" onclick="deleteJob(${job.id})">🗑 Delete</button>
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+      return `<div class="fitter-section">
+        <div class="fitter-header" style="color:${f.color};border-color:${f.color}40">${f.name}</div>
+        ${fj.length===0?'<div class="no-jobs">No jobs</div>':cards}
+      </div>`;
+    }).join("");
+
+    html+=`<div class="day-col${isToday?" today":""}">
+      <div class="day-header">
+        <div class="day-name">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{weekday:"long"})}${isToday?'<span class="today-tag">TODAY</span>':""}</div>
+        <div class="day-date">${new Date(date+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"long"})}</div>
+        <div class="cap-section">${capHtml}</div>
+        <div class="day-actions">
+          <button class="btn-sm btn-add" onclick="openAdd('${date}')">+ Add Job</button>
+          ${certLink?`<a class="btn-sm btn-cert" href="${certLink}">📋 Certifier Email</a>`:""}
+        </div>
+      </div>
+      ${jobsHtml}
+    </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById("app").innerHTML=html;
+  document.getElementById("week-nav").style.display="flex";
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+function renderDashboard(){
+  document.getElementById("alert-banner").style.display="none";
+  document.getElementById("week-nav").style.display="none";
+  const today=new Date().toISOString().split("T")[0];
+  const weekDays=getWeekDays(getMondayOf(today));
+  const weekJobs=jobs.filter(j=>weekDays.includes(j.date));
+  const pending=jobs.filter(j=>j.status==="PENDING RESCHEDULE");
+
+  // ── Builder stats: total | reschedules (our fault) | futiles (their fault) ──
+  const bs={};
+  jobs.forEach(j=>{
+    if(!bs[j.customer])bs[j.customer]={total:0,resched:0,futile:0};
+    bs[j.customer].total++;
+    if(j.status==="RESCHEDULED"||j.status==="PENDING RESCHEDULE")bs[j.customer].resched++;
+    if(j.status==="FUTILE")bs[j.customer].futile++;
+  });
+  const builderRows=Object.entries(bs).sort((a,b)=>b[1].total-a[1].total).slice(0,12).map(([name,s],i)=>{
+    const ontime=s.total>0?Math.round(((s.total-s.resched-s.futile)/s.total)*100):100;
+    const futileRate=s.total>0?Math.round((s.futile/s.total)*100):0;
+    const reschedRate=s.total>0?Math.round((s.resched/s.total)*100):0;
+    const otColor=ontime>=80?"#166534":ontime>=60?"#854d0e":"#991b1b";
+    const frColor=futileRate===0?"#166534":futileRate<=10?"#854d0e":"#991b1b";
+    const futileFlag=s.futile>=3?'<span style="font-size:9px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:3px;font-weight:800;margin-left:4px">⚠ REPEATED FUTILES</span>':"";
+    return `<tr>
+      <td style="font-weight:700">${name}</td>
+      <td style="text-align:center">${s.total}</td>
+      <td style="text-align:center">${s.resched}<span style="font-size:9px;color:#854d0e;margin-left:3px">(${reschedRate}%)</span></td>
+      <td style="text-align:center">${s.futile}<span style="font-size:9px;color:#991b1b;margin-left:3px">(${futileRate}%)</span>${futileFlag}</td>
+      <td style="text-align:center"><span style="font-weight:800;color:${otColor}">${ontime}%</span></td>
+      <td>
+        <div style="display:flex;gap:4px;align-items:center">
+          <div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
+            <div class="rate-bar" style="width:${ontime}%;background:${otColor}"></div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+
+  const pendingRows=pending.map(j=>{
+    const f=FITTERS.find(f=>f.id===j.fitter);
+    return `<tr>
+      <td>${formatDate(j.date)}</td>
+      <td style="font-weight:700;color:${f?.color||"#000"}">${(j.fitter||"").toUpperCase()}</td>
+      <td style="font-weight:600">${j.customer}</td>
+      <td>${j.address}, ${j.suburb}</td>
+      <td>${j.doors}</td>
+      <td>${zoneTag(getZone(j.suburb))}</td>
+      <td><a class="btn-resched" style="font-size:10px;padding:3px 7px;border-radius:4px;text-decoration:none" href="${buildReschedEmail(j)}">📧 Email</a></td>
+    </tr>`;
+  }).join("");
+
+  const effortItems=cfg_live.doorEfforts.map(d=>`<div class="effort-item"><span style="font-size:11px;font-weight:600">${d.type}</span><span class="effort-pts">${d.pts}</span></div>`).join("");
+  const zoneItems=cfg_live.zoneGroups.map(z=>{const zc=ZONE_COLORS[z.zone]||ZONE_COLORS["UNKNOWN"];return `<div class="zone-rule"><div style="margin-bottom:5px">${zoneTag(z.zone)}</div><div style="font-size:10px;color:#6b7280">Can combine with: <strong>${z.canMix.join(", ")}</strong></div></div>`;}).join("");
+
+  const tabs={
+    builders:`<div>
+      <h3 class="section-title">Builder Performance — Reschedules vs Futiles</h3>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:10px;background:#fff;border-radius:6px;padding:8px 12px;border:1px solid #e5e7eb">
+        <strong style="color:#854d0e">Reschedules</strong> = rescheduled by us (door not in, our scheduling, etc) &nbsp;|&nbsp;
+        <strong style="color:#991b1b">Futiles</strong> = builder's fault (site not ready, locked, trades in way) — futile visit charges may apply &nbsp;|&nbsp;
+        <span style="color:#991b1b;font-weight:700">⚠ REPEATED FUTILES</span> = 3+ futile visits for this builder
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead style="background:#f8fafc"><tr>
+            <th>Builder</th>
+            <th style="text-align:center">Total Jobs</th>
+            <th style="text-align:center">Reschedules (our end)</th>
+            <th style="text-align:center">Futiles (builder fault)</th>
+            <th style="text-align:center">On-Time Rate</th>
+            <th>Rate Bar</th>
+          </tr></thead>
+          <tbody>${builderRows}</tbody>
+        </table>
+      </div>
+    </div>`,
+    pending:`<div>
+      <h3 class="section-title" style="color:#991b1b">⚠ Pending Reschedule — Action Required</h3>
+      ${pending.length===0?'<div style="padding:20px;text-align:center;color:#6b7280;font-size:12px">No pending reschedules 🎉</div>':`<div class="table-wrap" style="border-color:#fca5a5">
+        <table><thead style="background:#fee2e2"><tr>
+          <th style="color:#991b1b">Date</th><th style="color:#991b1b">Fitter</th>
+          <th style="color:#991b1b">Customer</th><th style="color:#991b1b">Address</th>
+          <th style="color:#991b1b">Doors</th><th style="color:#991b1b">Zone</th><th style="color:#991b1b">Action</th>
+        </tr></thead><tbody>${pendingRows}</tbody></table>
+      </div>`}
+    </div>`,
+    zones:`<div>
+      <h3 class="section-title">Zone Compatibility Rules</h3>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:10px">Zones that can be combined on the same day for the same fitter. Mixing anything outside these groups triggers a ⚠ warning.</p>
+      <div class="zone-rules">${zoneItems}</div>
+      <h3 class="section-title">Door Type Effort Points</h3>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:10px">Points are added up per fitter per day against their capacity limit. Rescheduled and Futile jobs are excluded from the count.</p>
+      <div class="effort-table">${effortItems}</div>
+    </div>`,
+  };
+
+  const kpiFutile=weekJobs.filter(j=>j.status==="FUTILE").length;
+  const kpiResched=weekJobs.filter(j=>j.status==="RESCHEDULED").length;
+
+  document.getElementById("app").innerHTML=`<div class="dashboard">
+    <div class="kpi-row">
+      <div class="kpi" style="background:#eff6ff;border-color:#bfdbfe"><div class="kpi-val" style="color:#1d4ed8">${weekJobs.length}</div><div class="kpi-label">This Week Jobs</div></div>
+      <div class="kpi" style="background:#dcfce7;border-color:#86efac"><div class="kpi-val" style="color:#166534">${weekJobs.filter(j=>j.status==="COMPLETED").length}</div><div class="kpi-label">Completed</div></div>
+      <div class="kpi" style="background:#e0f2fe;border-color:#7dd3fc"><div class="kpi-val" style="color:#0369a1">${weekJobs.filter(j=>j.status==="CONFIRMED").length}</div><div class="kpi-label">Confirmed</div></div>
+      <div class="kpi" style="background:#fee2e2;border-color:#fca5a5"><div class="kpi-val" style="color:#991b1b">${kpiFutile}</div><div class="kpi-label">Futile (Builder Fault)</div></div>
+      <div class="kpi" style="background:#fef9c3;border-color:#fde68a"><div class="kpi-val" style="color:#854d0e">${kpiResched}</div><div class="kpi-label">Rescheduled (Our End)</div></div>
+    </div>
+    <div class="tab-strip">
+      <button class="tab-btn${dashTab==="builders"?" active":""}" onclick="setDashTab('builders')">📊 Builder Stats</button>
+      <button class="tab-btn${dashTab==="pending"?" active":""}" onclick="setDashTab('pending')">⚠ Pending Reschedule (${pending.length})</button>
+      <button class="tab-btn${dashTab==="zones"?" active":""}" onclick="setDashTab('zones')">🗺 Zone & Effort Reference</button>
+    </div>
+    <div id="dash-tab-content">${tabs[dashTab]}</div>
+  </div>`;
+}
+
+function setDashTab(tab){ dashTab=tab; renderDashboard(); }
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER CONFIG
+// ═══════════════════════════════════════════════════════════════
+function renderConfig(){
+  document.getElementById("alert-banner").style.display="none";
+  document.getElementById("week-nav").style.display="none";
+  const cfg=cfg_live;
+
+  const fitterCards=cfg.fitters.map((f,i)=>`
+    <div class="fitter-config-card" style="border-top:4px solid ${f.color}">
+      <label>Fitter Name</label>
+      <input type="text" id="fc-name-${i}" value="${f.name}" style="margin-bottom:6px">
+      <label>Max Local Capacity (pts/day)</label>
+      <input type="number" id="fc-maxLocal-${i}" value="${f.maxLocal}" min="1" max="20" step="0.5" style="margin-bottom:6px">
+      <label>Max Away / Tablelands (pts/day)</label>
+      <input type="number" id="fc-maxAway-${i}" value="${f.maxAway}" min="1" max="20" step="0.5" style="margin-bottom:6px">
+      <label>Colour (used for their diary column)</label>
+      <input type="color" id="fc-color-${i}" value="${f.color}" style="height:32px;padding:2px;width:100%;margin-bottom:8px">
+      <button onclick="removeFitter(${i})" style="width:100%;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:5px;padding:5px;font-size:10px;font-weight:700;cursor:pointer">✕ Remove this Fitter</button>
+    </div>`).join('')
+  + `<div class="fitter-config-card" style="border-top:4px solid #d1d5db;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:180px;cursor:pointer;background:#f9fafb;border-radius:8px" onclick="addFitter()">
+      <div style="font-size:40px;color:#9ca3af">+</div>
+      <div style="font-size:12px;font-weight:800;color:#6b7280;margin-top:6px">Add Fitter</div>
+      <div style="font-size:10px;color:#9ca3af;margin-top:3px">Click to add new fitter</div>
+    </div>`;
+
+  const effortRows=cfg.doorEfforts.map((d,i)=>`
+    <div class="config-list-item">
+      <input type="text" id="de-type-${i}" value="${d.type}" style="flex:2">
+      <input type="number" id="de-pts-${i}" value="${d.pts}" min="0.5" max="20" step="0.5" style="width:70px;flex:none">
+      <span style="font-size:10px;color:#6b7280;flex:none">pts</span>
+      <button class="btn-cfg-del" onclick="removeEffortRow(${i})">✕</button>
+    </div>`).join('');
+
+  const suburbRows=cfg.suburbZones.map((s,i)=>`
+    <div class="config-list-item">
+      <input type="text" id="sz-suburb-${i}" value="${s.suburb}" style="flex:2">
+      <select id="sz-zone-${i}" style="flex:1">
+        ${cfg.zoneGroups.map(z=>`<option value="${z.zone}"${z.zone===s.zone?' selected':''}>${z.zone}</option>`).join('')}
+      </select>
+      <button class="btn-cfg-del" onclick="removeSuburbRow(${i})">✕</button>
+    </div>`).join('');
+
+  const builderRows=cfg.builders.map((b,i)=>`
+    <div class="config-list-item">
+      <input type="text" id="bl-${i}" value="${b}" style="flex:1">
+      <button class="btn-cfg-del" onclick="removeBuilderRow(${i})">✕</button>
+    </div>`).join('');
+
+  document.getElementById('app').innerHTML=`<div class="config-page">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="font-size:18px;font-weight:900;color:#1f2937">⚙ Branch Configuration</h2>
+        <p style="font-size:11px;color:#6b7280;margin-top:3px">Customise for your branch. All settings saved in your browser.</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cfg-save" onclick="saveAllConfig()">💾 Save All Settings</button>
+        <button class="btn-cfg-reset" onclick="resetConfig()">↩ Reset to Defaults</button>
+      </div>
+    </div>
+
+    <!-- Microsoft Lists Connection -->
+    ${renderListsSetup()}
+
+    <!-- Branch Info -->
+    <div class="config-section">
+      <div class="config-section-header">
+        <div><div class="config-section-title">🏢 Branch Details</div>
+        <div class="config-section-desc">Branch name appears in the header and all emails</div></div>
+      </div>
+      <div class="config-body">
+        <div class="config-row" style="grid-template-columns:1fr 1fr">
+          <div class="config-field"><label>Branch Name</label><input type="text" id="cfg-branchName" value="${cfg.branchName||''}"></div>
+          <div class="config-field"><label>Certifier Email (Form 15/43)</label><input type="email" id="cfg-certEmail" value="${cfg.certifierEmail||''}"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fitters -->
+    <div class="config-section">
+      <div class="config-section-header">
+        <div><div class="config-section-title">👷 Fitters & Capacity</div>
+        <div class="config-section-desc">Name, local capacity, away/out-of-town capacity (effort points per day)</div></div>
+      </div>
+      <div class="config-body">
+        <div class="fitter-config-grid">${fitterCards}</div>
+        <p style="font-size:10px;color:#6b7280;margin-top:10px">ℹ Away capacity applies when any job that day is in an OUT OF TOWN or TABLELANDS zone.</p>
+      </div>
+    </div>
+
+    <!-- Door Efforts -->
+    <div class="config-section">
+      <div class="config-section-header">
+        <div><div class="config-section-title">🚪 Door Type Effort Points</div>
+        <div class="config-section-desc">Points used when calculating fitter daily capacity</div></div>
+      </div>
+      <div class="config-body">
+        <div id="effort-rows">${effortRows}</div>
+        <button class="btn-cfg-add" onclick="addEffortRow()">+ Add Door Type</button>
+      </div>
+    </div>
+
+    <!-- Suburb → Zone -->
+    <div class="config-section">
+      <div class="config-section-header">
+        <div><div class="config-section-title">🗺 Suburb → Zone Mapping</div>
+        <div class="config-section-desc">Zone is auto-detected from this list when you enter a suburb on any job</div></div>
+      </div>
+      <div class="config-body">
+        <div id="suburb-rows" style="max-height:320px;overflow-y:auto">${suburbRows}</div>
+        <button class="btn-cfg-add" onclick="addSuburbRow()">+ Add Suburb</button>
+      </div>
+    </div>
+
+    <!-- Builders -->
+    <div class="config-section">
+      <div class="config-section-header">
+        <div><div class="config-section-title">🏗 Builder / Customer List</div>
+        <div class="config-section-desc">Populates the builder dropdown when adding jobs</div></div>
+      </div>
+      <div class="config-body">
+        <div id="builder-rows" style="max-height:280px;overflow-y:auto">${builderRows}</div>
+        <button class="btn-cfg-add" onclick="addBuilderRow()">+ Add Builder</button>
+      </div>
+    </div>
+
+    <div style="padding:16px 0">
+      <button class="btn-cfg-save" onclick="saveAllConfig()" style="width:100%;padding:12px;font-size:13px">💾 Save All Settings</button>
+    </div>
+  </div>`;
+}
+
+
+function cycleMSStatus(idx) {
+  const r = measureJobs[idx];
+  const cur = MS_STATUSES.indexOf(r.status);
+  r.status = MS_STATUSES[(cur+1) % MS_STATUSES.length];
+  saveMod('measure', measureJobs);
+  renderMeasure();
+}
+
+function openMSModal(idx) {
+  msModalIdx = idx;
+  const d = idx !== null ? measureJobs[idx] : {};
+  document.getElementById('ms-modal-title').textContent = idx !== null ? `Edit — ${d.customer||''}` : 'Add Measure Job';
+
+  const subOpts = cfg_live.suburbZones.slice().sort((a,b)=>a.suburb.localeCompare(b.suburb))
+    .map(s=>`<option value="${s.suburb}"${s.suburb===d.suburb?' selected':''}>${s.suburb}</option>`).join('');
+  const statOpts = MS_STATUSES.map(s=>`<option${s===d.status?' selected':''}>${s}</option>`).join('');
+  const custOpts = cfg_live.builders.map(b=>`<option${b===d.customer?' selected':''}>${b}</option>`).join('');
+
+  document.getElementById('ms-form-body').innerHTML = `
+    <div class="form-field"><label>Customer / Builder</label>
+      <select id="msf-customer">${custOpts}</select></div>
+    <div class="form-field"><label>PO Number</label>
+      <input id="msf-po" value="${escH(d.po||'')}"></div>
+    <div class="form-field full"><label>Site Address</label>
+      <input id="msf-address" value="${escH(d.address||'')}"></div>
+    <div class="form-field"><label>Suburb</label>
+      <select id="msf-suburb" onchange="updateMSZonePreview()">${subOpts}</select></div>
+    <div class="form-field"><label>Status</label>
+      <select id="msf-status">${statOpts}</select></div>
+    <div class="form-field"><label>Profile (door type)</label>
+      <input id="msf-profile" value="${escH(d.profile||'')}"></div>
+    <div class="form-field"><label>Colour</label>
+      <input id="msf-colour" value="${escH(d.colour||'')}"></div>
+    <div class="form-field"><label>Required Height (mm)</label>
+      <input id="msf-height" type="number" value="${d.height||''}"></div>
+    <div class="form-field"><label>Required Width (mm)</label>
+      <input id="msf-width" type="number" value="${d.width||''}"></div>
+    <div class="form-field"><label>LH / Headroom / RH</label>
+      <input id="msf-lhr" value="${escH(d.lhr||'')}"></div>
+    <div class="form-field"><label>Measured Date</label>
+      <input id="msf-measDate" type="date" value="${d.measuredDate||''}"></div>
+    <div class="form-field"><label>Quote / Reference</label>
+      <input id="msf-quote" value="${escH(d.quote||'')}"></div>
+    <div class="form-field full"><label>Photo Links</label>
+      <input id="msf-photo" value="${escH(d.photo||'')}"></div>
+    <div class="form-field full"><label>Notes</label>
+      <textarea id="msf-notes" rows="2">${escH(d.notes||'')}</textarea></div>`;
+
+  updateMSZonePreview();
+  document.getElementById('ms-modal').style.display = 'flex';
+}
+
+function updateMSZonePreview() {
+  const suburb = document.getElementById('msf-suburb')?.value || '';
+  const zone = SUBURB_ZONE_MAP[suburb.toUpperCase()] || 'UNKNOWN';
+  const el = document.getElementById('ms-zone-preview');
+  if (!el) return;
+  if (suburb) {
+    const zc = ZONE_SECTION_COLORS[zone] || ZONE_SECTION_COLORS['UNKNOWN'];
+    el.style.display = 'block';
+    el.style.background = zc.bg;
+    el.style.border = `1px solid ${zc.c}40`;
+    el.style.borderRadius = '5px';
+    el.style.padding = '6px 10px';
+    el.style.fontSize = '11px';
+    el.innerHTML = `<strong>Zone detected:</strong> <span style="font-weight:800;color:${zc.c}">${zone}</span> — job will be placed in the <strong>${zone}</strong> section`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function saveMSRow() {
+  const customer = document.getElementById('msf-customer').value;
+  const address  = document.getElementById('msf-address').value;
+  if (!customer || !address) { alert('Customer and address are required.'); return; }
+
+  const row = {
+    po:          document.getElementById('msf-po').value,
+    customer,
+    address,
+    suburb:      document.getElementById('msf-suburb').value,
+    status:      document.getElementById('msf-status').value,
+    profile:     document.getElementById('msf-profile').value,
+    colour:      document.getElementById('msf-colour').value,
+    height:      document.getElementById('msf-height').value,
+    width:       document.getElementById('msf-width').value,
+    lhr:         document.getElementById('msf-lhr').value,
+    measuredDate:document.getElementById('msf-measDate').value,
+    quote:       document.getElementById('msf-quote').value,
+    photo:       document.getElementById('msf-photo').value,
+    notes:       document.getElementById('msf-notes').value,
+  };
+
+  if (msModalIdx !== null) {
+    measureJobs[msModalIdx] = row;
+  } else {
+    // Insert new job in correct position:
+    // sorted by zone section → suburb → street → lot number descending
+    function parseLotN(addr) {
+      const m = (addr||'').match(/^LOT\s+(\d+)/i);
+      return m ? parseInt(m[1]) : 0;
+    }
+    function parseStreetN(addr) {
+      return (addr||'').replace(/^LOT\s+\d+\s*(\(\d+\))?\s*/i,'').replace(/^\d+\s*(\/\d+)?\s*/,'').trim().toUpperCase();
+    }
+
+    const zone = SUBURB_ZONE_MAP[(row.suburb||'').toUpperCase()] || 'UNKNOWN';
+    const zoneIdx = ZONE_SECTION_ORDER.indexOf(zone);
+    const rowStreet = parseStreetN(row.address);
+    const rowLot    = parseLotN(row.address);
+
+    let insertIdx = measureJobs.length; // default: append
+    for (let i = 0; i < measureJobs.length; i++) {
+      const j = measureJobs[i];
+      const jZone    = SUBURB_ZONE_MAP[(j.suburb||'').toUpperCase()] || 'UNKNOWN';
+      const jZoneIdx = ZONE_SECTION_ORDER.indexOf(jZone);
+      // Is this job "after" the new job in sort order?
+      if (jZoneIdx > zoneIdx) { insertIdx = i; break; }
+      if (jZoneIdx === zoneIdx) {
+        const subCmp = (j.suburb||'').localeCompare(row.suburb||'');
+        if (subCmp > 0) { insertIdx = i; break; }
+        if (subCmp === 0) {
+          const jStreet = parseStreetN(j.address);
+          const streetCmp = jStreet.localeCompare(rowStreet);
+          if (streetCmp > 0) { insertIdx = i; break; }
+          if (streetCmp === 0) {
+            // Same street — insert descending by lot (higher lots first)
+            if (parseLotN(j.address) < rowLot) { insertIdx = i; break; }
+          }
+        }
+      }
+    }
+    measureJobs.splice(insertIdx, 0, row);
+  }
+
+  saveMod('measure', measureJobs);
+  document.getElementById('ms-modal').style.display = 'none';
+  renderMeasure();
+}
+
+function deleteMSRow(idx) {
+  if (!confirm(`Delete measure job for ${measureJobs[idx]?.customer}?`)) return;
+  measureJobs.splice(idx, 1);
+  saveMod('measure', measureJobs);
+  renderMeasure();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// READY TO ORDER
+// Auto-calculated from Install Diary jobs with REQUESTED status.
+// Install date → truck week (order by = 3 Mondays before install
+// week; truck arrival = 2 Mondays before; install week from = Monday)
+// ═══════════════════════════════════════════════════════════════
+
+function getMondayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d;
+}
+
+function addWeeks(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n * 7);
+  return d;
+}
+
+function getPrevFriday(date) {
+  const d = new Date(date);
+  // Go back to the Friday before the given Monday
+  d.setDate(d.getDate() - 3);
+  return d;
+}
+
+function dateToIso(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function fmtShort(d) {
+  if (!d) return '—';
+  const dt = typeof d === 'string' ? new Date(d + 'T00:00:00') : d;
+  return dt.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+}
+
+function calcTruckWeek(installDateStr) {
+  // Install date → install week Monday
+  const installMonday = getMondayOfWeek(installDateStr);
+  // Truck arrives 2 weeks before install week Monday
+  const truckArrival  = addWeeks(installMonday, -2);
+  // Order by = Friday before truck arrival week (i.e. Friday 3 weeks before install week)
+  const truckMonday   = getMondayOfWeek(dateToIso(truckArrival));
+  const orderByFri    = addWeeks(truckMonday, -1);
+  orderByFri.setDate(orderByFri.getDate() + 4); // Monday → Friday
+
+  return {
+    installWeekFrom: dateToIso(installMonday),
+    truckArrival:    dateToIso(truckArrival),
+    orderBy:         dateToIso(orderByFri),
+    sortKey:         dateToIso(installMonday),
+  };
+}
+
+function buildRTOData() {
+  // Collect all diary jobs that are REQUESTED or CONFIRMED (have an install date booked)
+  // and cross-reference with measure sheet for dimensions
+  const eligible = jobs.filter(j =>
+    j.date &&
+    (j.status === 'REQUESTED' || j.status === 'CONFIRMED') &&
+    j.customer
+  );
+
+  // Also include rtoJobs that were manually added (from original workbook seed)
+  // but de-duplicate by address
+  const result = [];
+  const seen = new Set();
+
+  eligible.forEach(j => {
+    const key = (j.address||'').toUpperCase().trim();
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    // Try to find matching measure job for dimensions
+    const mJob = measureJobs.find(m =>
+      m.customer === j.customer &&
+      (m.address === j.address ||
+       (j.suburb && m.suburb === j.suburb && m.address && j.address && m.address.includes(j.address.split(' ').pop())))
+    );
+
+    const tw = calcTruckWeek(j.date);
+    const hasMeasure = mJob && mJob.height && mJob.width;
+
+    result.push({
+      _source: 'diary',
+      _jobId:  j.id,
+      po:      j.sage || mJob?.po || '',
+      customer: j.customer,
+      address:  j.address,
+      suburb:   j.suburb,
+      profile:  j.doorType || mJob?.profile || '',
+      colour:   mJob?.colour || '',
+      doorType: j.doors || mJob?.profile || '',
+      reqH:     mJob?.height || '',
+      reqW:     mJob?.width  || '',
+      qkClose:  'NO',
+      extRail:  'NO',
+      measureDate: hasMeasure ? (mJob.measuredDate||'MEASURED') : 'MISSING MEASUREMENTS',
+      notes:    j.builderNotes || mJob?.notes || '',
+      quote:    mJob?.quote || '',
+      actH:     mJob?.height || '',
+      actW:     mJob?.width  || '',
+      lhr:      mJob?.lhr || '',
+      installDate: j.date,
+      effort:   j.effort || '',
+      supplyOnly: '',
+      truckWeek:   tw,
+      missingMeas: !hasMeasure,
+    });
+  });
+
+  // Also include manually-added RTO jobs not already covered
+  rtoJobs.forEach(r => {
+    const key = (r.address||'').toUpperCase().trim();
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const tw = r.installDate ? calcTruckWeek(r.installDate) : null;
+    result.push({
+      ...r,
+      _source: 'manual',
+      truckWeek: tw || {installWeekFrom:'9999-99-99',truckArrival:'',orderBy:'',sortKey:'9999-99-99'},
+      missingMeas: r.measureDate==='MISSING MEASUREMENTS' || (!r.actH && !r.height),
+    });
+  });
+
+  // Sort by install date
+  result.sort((a,b) => (a.truckWeek?.sortKey||'').localeCompare(b.truckWeek?.sortKey||''));
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MEASURE SHEET
+// Grouped by zone section (South Out of Town → South Local →
+// North Out of Town → North Local → Tablelands → Unknown)
+// Sorted by suburb within each section
+// ═══════════════════════════════════════════════════════════════
+const MS_STATUSES=['READY TO MEASURE','MEASURED','SEND/CHECK QUOTE','AWAITING UPDATE','MISSING MEASUREMENTS'];
+const MS_COLORS={
+  'MEASURED':               {bg:'#dcfce7',c:'#166534'},
+  'READY TO MEASURE':       {bg:'#fef9c3',c:'#854d0e'},
+  'MISSING MEASUREMENTS':   {bg:'#fee2e2',c:'#991b1b'},
+  'AWAITING UPDATE':        {bg:'#ede9fe',c:'#7c3aed'},
+  'SEND/CHECK QUOTE':       {bg:'#dbeafe',c:'#1d4ed8'},
+};
+
+// Zone section order matches original workbook
+const ZONE_SECTION_ORDER = [
+  'SOUTH OUT OF TOWN',
+  'SOUTH LOCAL',
+  'CENTRAL',
+  'NORTH LOCAL',
+  'NORTH OUT OF TOWN',
+  'TABLELANDS',
+  'TABLELANDS NORTH',
+  'UNKNOWN',
+];
+
+const ZONE_SECTION_COLORS = {
+  'SOUTH OUT OF TOWN':  {bg:'#fee2e2',c:'#991b1b',header:'#dc2626'},
+  'SOUTH LOCAL':        {bg:'#fef9c3',c:'#854d0e',header:'#d97706'},
+  'CENTRAL':            {bg:'#e0e7ff',c:'#3730a3',header:'#4f46e5'},
+  'NORTH LOCAL':        {bg:'#dbeafe',c:'#1e40af',header:'#2563eb'},
+  'NORTH OUT OF TOWN':  {bg:'#fce7f3',c:'#9d174d',header:'#be185d'},
+  'TABLELANDS':         {bg:'#d1fae5',c:'#065f46',header:'#059669'},
+  'TABLELANDS NORTH':   {bg:'#a7f3d0',c:'#064e3b',header:'#10b981'},
+  'UNKNOWN':            {bg:'#f3f4f6',c:'#6b7280',header:'#6b7280'},
+};
+
+let msModalIdx = null;
+
+function getMeasureZone(r) {
+  return SUBURB_ZONE_MAP[(r.suburb||'').toUpperCase().trim()] || 'UNKNOWN';
+}
+
+function renderMeasure() {
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+
+  const filterStatus = document.getElementById('ms-filter')?.value || 'ALL';
+  const filterZone   = document.getElementById('ms-zone')?.value || 'ALL';
+  const search       = (document.getElementById('ms-search')?.value || '').toLowerCase();
+
+  // Status counts
+  const counts = {};
+  MS_STATUSES.forEach(s => counts[s] = measureJobs.filter(r => r.status===s).length);
+  const totalMeasured = counts['MEASURED']||0;
+  const totalPending  = (counts['READY TO MEASURE']||0) + (counts['AWAITING UPDATE']||0);
+  const totalMissing  = counts['MISSING MEASUREMENTS']||0;
+
+  // Filter jobs
+  let filtered = measureJobs;
+  if (filterStatus !== 'ALL') filtered = filtered.filter(r => r.status === filterStatus);
+  if (filterZone   !== 'ALL') filtered = filtered.filter(r => getMeasureZone(r) === filterZone);
+  if (search) filtered = filtered.filter(r => JSON.stringify(r).toLowerCase().includes(search));
+
+  // Group by zone section, then sort by suburb within each
+  const grouped = {};
+  ZONE_SECTION_ORDER.forEach(z => grouped[z] = []);
+  filtered.forEach(r => {
+    const z = getMeasureZone(r);
+    if (!grouped[z]) grouped[z] = [];
+    grouped[z].push(r);
+  });
+  // Sort: suburb alphabetically, then street name, then lot number DESCENDING
+  // e.g. LOT 174 SHELLY COURT before LOT 155 SHELLY COURT
+  function parseLot(addr) {
+    const m = (addr||'').match(/^LOT\s+(\d+)/i);
+    return m ? parseInt(m[1]) : 0;
+  }
+  function parseStreet(addr) {
+    return (addr||'').replace(/^LOT\s+\d+\s*(\(\d+\))?\s*/i,'').replace(/^\d+\s*(\/\d+)?\s*/,'').trim().toUpperCase();
+  }
+  ZONE_SECTION_ORDER.forEach(z => {
+    grouped[z].sort((a,b) => {
+      // 1. Sort by suburb
+      const subCmp = (a.suburb||'').localeCompare(b.suburb||'');
+      if (subCmp !== 0) return subCmp;
+      // 2. Sort by street name
+      const streetA = parseStreet(a.address), streetB = parseStreet(b.address);
+      const streetCmp = streetA.localeCompare(streetB);
+      if (streetCmp !== 0) return streetCmp;
+      // 3. Sort by lot number DESCENDING (highest first)
+      return parseLot(b.address) - parseLot(a.address);
+    });
+  });
+
+  const statusPills = MS_STATUSES.map(s => {
+    const sc = MS_COLORS[s] || {bg:'#f3f4f6',c:'#374151'};
+    return `<div style="background:${sc.bg};color:${sc.c};border:1px solid ${sc.c}30;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap"
+      onclick="document.getElementById('ms-filter').value='${s}';renderMeasure()">${s}: ${counts[s]||0}</div>`;
+  }).join('');
+
+  // Build zone section tables
+  const sectionHtml = ZONE_SECTION_ORDER.map(zone => {
+    const rows = grouped[zone];
+    if (!rows.length) return '';
+    const zc = ZONE_SECTION_COLORS[zone] || ZONE_SECTION_COLORS['UNKNOWN'];
+
+    const rowsHtml = rows.map(r => {
+      const origIdx = measureJobs.indexOf(r);
+      const sc = MS_COLORS[r.status] || {bg:'#fff',c:'#374151'};
+      const jobIdBadge = r.jobId ? `<span style="font-size:9px;font-weight:800;background:#f0f9ff;color:#0369a1;padding:2px 6px;border-radius:3px;border:1px solid #bae6fd">${r.jobId}</span>` : '<span style="font-size:9px;color:#d1d5db">—</span>';
+      const hasInstallDate = jobs.some(j => {
+        // Check if this measure job has a matching job in the diary
+        return j.customer === r.customer &&
+               (j.address === r.address || j.suburb === r.suburb) &&
+               (j.status === 'REQUESTED' || j.status === 'CONFIRMED');
+      });
+      return `<tr style="background:${sc.bg}20">
+        <td style="text-align:center">${jobIdBadge}</td>
+        <td style="font-weight:600;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(r.po)}</td>
+        <td style="font-weight:800;font-size:12px">${escH(r.customer)}</td>
+        <td style="font-size:11px">${escH(r.address)}</td>
+        <td style="font-size:11px;font-weight:600">${escH(r.suburb)}</td>
+        <td><span style="font-size:9px;font-weight:800;background:#e0e7ff;color:#3730a3;padding:2px 6px;border-radius:3px">${escH(r.profile)}</span></td>
+        <td style="font-size:11px">${escH(r.colour)}</td>
+        <td style="text-align:center;font-weight:700">${r.height||'—'}</td>
+        <td style="text-align:center;font-weight:700">${r.width||'—'}</td>
+        <td style="font-size:10px">${escH(r.lhr)}</td>
+        <td style="font-size:10px">${fmtD(r.measuredDate)}</td>
+        <td style="font-size:10px">${escH(r.quote)}</td>
+        <td>
+          <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:${sc.bg};color:${sc.c};border:1px solid ${sc.c}40;white-space:nowrap;cursor:pointer"
+            onclick="cycleMSStatus(${origIdx})" title="Click to change status">${r.status||'—'}</span>
+        </td>
+        <td style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.notes)}">${escH(r.notes)}</td>
+        <td>
+          ${hasInstallDate?'<span style="font-size:9px;background:#dcfce7;color:#166534;padding:2px 5px;border-radius:3px;font-weight:700">📅 In Diary</span>':''}
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;white-space:nowrap">
+            <button onclick="openMSModal(${origIdx})" style="font-size:9px;padding:2px 8px;background:#1d4ed8;color:#fff;border:none;border-radius:3px;cursor:pointer">Edit</button>
+            ${r._spId?`<button onclick="openSPAttachments(${r._spId},'${LIST_MAP.measure}')" style="font-size:9px;padding:2px 7px;background:#7c3aed;color:#fff;border:none;border-radius:3px;cursor:pointer" title="View/add PO attachments">📎</button>`:''}
+            <button onclick="deleteMSRow(${origIdx})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:${zc.header};color:#fff;border-radius:8px 8px 0 0;margin-top:16px">
+        <span style="font-size:12px;font-weight:900;letter-spacing:.5px">${zone}</span>
+        <span style="font-size:11px;font-weight:700;opacity:.85">${rows.length} job${rows.length!==1?'s':''}</span>
+      </div>
+      <div class="table-wrap" style="border-radius:0 0 8px 8px;margin-bottom:0">
+        <table>
+          <thead style="background:${zc.bg}"><tr>
+            <th style="color:${zc.c}">Job ID</th>
+            <th style="color:${zc.c}">PO Number</th>
+            <th style="color:${zc.c}">Customer</th>
+            <th style="color:${zc.c}">Address</th>
+            <th style="color:${zc.c}">Suburb</th>
+            <th style="color:${zc.c}">Profile</th>
+            <th style="color:${zc.c}">Colour</th>
+            <th style="color:${zc.c};text-align:center">H</th>
+            <th style="color:${zc.c};text-align:center">W</th>
+            <th style="color:${zc.c}">LH/Hd/RH</th>
+            <th style="color:${zc.c}">Measured Date</th>
+            <th style="color:${zc.c}">Quote / Ref</th>
+            <th style="color:${zc.c}">Status</th>
+            <th style="color:${zc.c}">Notes</th>
+            <th style="color:${zc.c}"></th>
+            <th style="color:${zc.c}"></th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML = `<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="font-size:16px;font-weight:900;color:#1f2937">📐 Measure Sheet</h2>
+        <p style="font-size:11px;color:#6b7280">All jobs requiring measurement. Grouped by zone. ${measureJobs.length} total records.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="ms-search" placeholder="Search..." onkeyup="renderMeasure()" value="${escH(search)}"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:160px">
+        <select id="ms-zone" onchange="renderMeasure()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All Zones</option>
+          ${ZONE_SECTION_ORDER.map(z=>`<option value="${z}"${filterZone===z?' selected':''}>${z}</option>`).join('')}
+        </select>
+        <select id="ms-filter" onchange="renderMeasure()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All Statuses (${measureJobs.length})</option>
+          ${MS_STATUSES.map(s=>`<option value="${s}"${filterStatus===s?' selected':''}>${s} (${counts[s]||0})</option>`).join('')}
+        </select>
+        <button onclick="openMSModal(null)"
+          style="background:#166534;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:800;cursor:pointer">+ Add Job</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#166534">✓ Measured:</strong> ${totalMeasured}</div>
+      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#854d0e">⏳ Pending Measure:</strong> ${totalPending}</div>
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#991b1b">⚠ Missing Info:</strong> ${totalMissing}</div>
+    </div>
+
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${statusPills}</div>
+
+    ${sectionHtml || '<div style="padding:40px;text-align:center;color:#6b7280">No jobs found</div>'}
+  </div>
+
+  <!-- ADD / EDIT MODAL -->
+  <div class="modal-overlay" id="ms-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()" style="width:580px">
+      <div class="modal-title">
+        <span id="ms-modal-title">Add Measure Job</span>
+        <button class="modal-close" onclick="document.getElementById('ms-modal').style.display='none'">✕</button>
+      </div>
+      <div class="form-grid" id="ms-form-body"></div>
+      <div id="ms-zone-preview" style="display:none;margin-bottom:10px"></div>
+      <div class="modal-actions">
+        <button class="btn-save" onclick="saveMSRow()">Save Job</button>
+        <button class="btn-cancel" onclick="document.getElementById('ms-modal').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function cycleMSStatus(idx) {
+  const r = measureJobs[idx];
+  const cur = MS_STATUSES.indexOf(r.status);
+  r.status = MS_STATUSES[(cur+1) % MS_STATUSES.length];
+  saveMod('measure', measureJobs);
+  renderMeasure();
+}
+
+function openMSModal(idx) {
+  msModalIdx = idx;
+  const d = idx !== null ? measureJobs[idx] : {};
+  document.getElementById('ms-modal-title').textContent = idx !== null ? `Edit — ${d.customer||''}` : 'Add Measure Job';
+
+  const subOpts = cfg_live.suburbZones.slice().sort((a,b)=>a.suburb.localeCompare(b.suburb))
+    .map(s=>`<option value="${s.suburb}"${s.suburb===d.suburb?' selected':''}>${s.suburb}</option>`).join('');
+  const statOpts = MS_STATUSES.map(s=>`<option${s===d.status?' selected':''}>${s}</option>`).join('');
+  const custOpts = cfg_live.builders.map(b=>`<option${b===d.customer?' selected':''}>${b}</option>`).join('');
+
+  document.getElementById('ms-form-body').innerHTML = `
+    <div class="form-field"><label>Customer / Builder</label>
+      <select id="msf-customer">${custOpts}</select></div>
+    <div class="form-field"><label>PO Number</label>
+      <input id="msf-po" value="${escH(d.po||'')}"></div>
+    <div class="form-field full"><label>Site Address</label>
+      <input id="msf-address" value="${escH(d.address||'')}"></div>
+    <div class="form-field"><label>Suburb</label>
+      <select id="msf-suburb" onchange="updateMSZonePreview()">${subOpts}</select></div>
+    <div class="form-field"><label>Status</label>
+      <select id="msf-status">${statOpts}</select></div>
+    <div class="form-field"><label>Profile (door type)</label>
+      <input id="msf-profile" value="${escH(d.profile||'')}"></div>
+    <div class="form-field"><label>Colour</label>
+      <input id="msf-colour" value="${escH(d.colour||'')}"></div>
+    <div class="form-field"><label>Required Height (mm)</label>
+      <input id="msf-height" type="number" value="${d.height||''}"></div>
+    <div class="form-field"><label>Required Width (mm)</label>
+      <input id="msf-width" type="number" value="${d.width||''}"></div>
+    <div class="form-field"><label>LH / Headroom / RH</label>
+      <input id="msf-lhr" value="${escH(d.lhr||'')}"></div>
+    <div class="form-field"><label>Measured Date</label>
+      <input id="msf-measDate" type="date" value="${d.measuredDate||''}"></div>
+    <div class="form-field"><label>Quote / Reference</label>
+      <input id="msf-quote" value="${escH(d.quote||'')}"></div>
+    <div class="form-field full"><label>Photo Links</label>
+      <input id="msf-photo" value="${escH(d.photo||'')}"></div>
+    <div class="form-field full"><label>Notes</label>
+      <textarea id="msf-notes" rows="2">${escH(d.notes||'')}</textarea></div>`;
+
+  updateMSZonePreview();
+  document.getElementById('ms-modal').style.display = 'flex';
+}
+
+function updateMSZonePreview() {
+  const suburb = document.getElementById('msf-suburb')?.value || '';
+  const zone = SUBURB_ZONE_MAP[suburb.toUpperCase()] || 'UNKNOWN';
+  const el = document.getElementById('ms-zone-preview');
+  if (!el) return;
+  if (suburb) {
+    const zc = ZONE_SECTION_COLORS[zone] || ZONE_SECTION_COLORS['UNKNOWN'];
+    el.style.display = 'block';
+    el.style.background = zc.bg;
+    el.style.border = `1px solid ${zc.c}40`;
+    el.style.borderRadius = '5px';
+    el.style.padding = '6px 10px';
+    el.style.fontSize = '11px';
+    el.innerHTML = `<strong>Zone detected:</strong> <span style="font-weight:800;color:${zc.c}">${zone}</span> — job will be placed in the <strong>${zone}</strong> section`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function saveMSRow() {
+  const customer = document.getElementById('msf-customer').value;
+  const address  = document.getElementById('msf-address').value;
+  if (!customer || !address) { alert('Customer and address are required.'); return; }
+
+  const row = {
+    po:          document.getElementById('msf-po').value,
+    customer,
+    address,
+    suburb:      document.getElementById('msf-suburb').value,
+    status:      document.getElementById('msf-status').value,
+    profile:     document.getElementById('msf-profile').value,
+    colour:      document.getElementById('msf-colour').value,
+    height:      document.getElementById('msf-height').value,
+    width:       document.getElementById('msf-width').value,
+    lhr:         document.getElementById('msf-lhr').value,
+    measuredDate:document.getElementById('msf-measDate').value,
+    quote:       document.getElementById('msf-quote').value,
+    photo:       document.getElementById('msf-photo').value,
+    notes:       document.getElementById('msf-notes').value,
+  };
+
+  if (msModalIdx !== null) {
+    measureJobs[msModalIdx] = row;
+  } else {
+    // Insert new job in correct position:
+    // sorted by zone section → suburb → street → lot number descending
+    function parseLotN(addr) {
+      const m = (addr||'').match(/^LOT\s+(\d+)/i);
+      return m ? parseInt(m[1]) : 0;
+    }
+    function parseStreetN(addr) {
+      return (addr||'').replace(/^LOT\s+\d+\s*(\(\d+\))?\s*/i,'').replace(/^\d+\s*(\/\d+)?\s*/,'').trim().toUpperCase();
+    }
+
+    const zone = SUBURB_ZONE_MAP[(row.suburb||'').toUpperCase()] || 'UNKNOWN';
+    const zoneIdx = ZONE_SECTION_ORDER.indexOf(zone);
+    const rowStreet = parseStreetN(row.address);
+    const rowLot    = parseLotN(row.address);
+
+    let insertIdx = measureJobs.length; // default: append
+    for (let i = 0; i < measureJobs.length; i++) {
+      const j = measureJobs[i];
+      const jZone    = SUBURB_ZONE_MAP[(j.suburb||'').toUpperCase()] || 'UNKNOWN';
+      const jZoneIdx = ZONE_SECTION_ORDER.indexOf(jZone);
+      // Is this job "after" the new job in sort order?
+      if (jZoneIdx > zoneIdx) { insertIdx = i; break; }
+      if (jZoneIdx === zoneIdx) {
+        const subCmp = (j.suburb||'').localeCompare(row.suburb||'');
+        if (subCmp > 0) { insertIdx = i; break; }
+        if (subCmp === 0) {
+          const jStreet = parseStreetN(j.address);
+          const streetCmp = jStreet.localeCompare(rowStreet);
+          if (streetCmp > 0) { insertIdx = i; break; }
+          if (streetCmp === 0) {
+            // Same street — insert descending by lot (higher lots first)
+            if (parseLotN(j.address) < rowLot) { insertIdx = i; break; }
+          }
+        }
+      }
+    }
+    measureJobs.splice(insertIdx, 0, row);
+  }
+
+  saveMod('measure', measureJobs);
+  document.getElementById('ms-modal').style.display = 'none';
+  renderMeasure();
+}
+
+function deleteMSRow(idx) {
+  if (!confirm(`Delete measure job for ${measureJobs[idx]?.customer}?`)) return;
+  measureJobs.splice(idx, 1);
+  saveMod('measure', measureJobs);
+  renderMeasure();
+}
+
+
+function renderRTO() {
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+
+  const search = (document.getElementById('rto-search')?.value||'').toLowerCase();
+  const allRows = buildRTOData();
+  let rows = allRows;
+  if (search) rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(search));
+
+  const missing  = allRows.filter(r => r.missingMeas);
+  const extRail  = allRows.filter(r => r.extRail==='YES');
+  const ready    = allRows.filter(r => !r.missingMeas);
+
+  // Group by truck week
+  const weeks = {};
+  rows.forEach(r => {
+    const tw = r.truckWeek;
+    const key = tw?.installWeekFrom || 'Unscheduled';
+    if (!weeks[key]) weeks[key] = { tw, rows: [] };
+    weeks[key].rows.push(r);
+  });
+
+  const weekHtml = Object.entries(weeks)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([key, {tw, rows: wRows}]) => {
+      const isPast = tw?.orderBy && tw.orderBy < new Date().toISOString().split('T')[0];
+      const isUrgent = tw?.orderBy && tw.orderBy <= (() => {const d=new Date();d.setDate(d.getDate()+7);return d.toISOString().split('T')[0];})();
+      const headerBg = isPast ? '#dc2626' : isUrgent ? '#d97706' : '#ea580c';
+      const headerLine = tw ? `ORDER BY (Fri): ${fmtShort(tw.orderBy)}   |   TRUCK ARRIVAL: ${fmtShort(tw.truckArrival)}   |   INSTALL WEEK FROM: ${fmtShort(tw.installWeekFrom)}` : 'Unscheduled';
+
+      const rowsHtml = wRows.map(r => {
+        const isMiss  = r.missingMeas;
+        const isExt   = r.extRail === 'YES';
+        const bg = isMiss ? '#fee2e2' : isExt ? '#fef9c3' : '#fff';
+        return `<tr style="background:${bg}">
+          <td style="font-size:10px;color:#6b7280;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.po)}">${escH(r.po)}</td>
+          <td style="font-weight:800;font-size:12px">${escH(r.customer)}</td>
+          <td style="font-size:11px">${escH(r.address)}</td>
+          <td style="font-size:11px">${escH(r.suburb)}</td>
+          <td><span style="font-size:9px;font-weight:800;background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:3px">${escH(r.profile||r.doorType||'—')}</span></td>
+          <td style="font-size:11px">${escH(r.colour)}</td>
+          <td style="text-align:center;font-weight:700">${r.reqH||r.actH||'—'}</td>
+          <td style="text-align:center;font-weight:700">${r.reqW||r.actW||'—'}</td>
+          <td style="font-size:10px">${escH(r.lhr||'—')}</td>
+          <td style="text-align:center;font-weight:800;color:${isExt?'#991b1b':'#6b7280'}">${r.extRail||'NO'}</td>
+          <td style="font-size:11px;font-weight:700">${fmtD(r.installDate)}</td>
+          <td style="text-align:center;font-weight:800;color:#1d4ed8">${r.effort||'—'}</td>
+          <td style="font-size:10px;color:${isMiss?'#991b1b':'#374151'};max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${isMiss?'MISSING MEASUREMENTS — measure job needed':escH(r.notes)}">${isMiss?'⚠ MISSING MEASUREMENTS':escH(r.notes)}</td>
+          <td style="font-size:10px">${r._source==='diary'?'<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;font-weight:700">📅 Diary</span>':'<span style="font-size:9px;background:#f3f4f6;color:#6b7280;padding:1px 5px;border-radius:3px">Manual</span>'}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div style="padding:10px 14px;background:${headerBg};color:#fff;border-radius:8px 8px 0 0;margin-top:16px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:800">${headerLine}</span>
+          <span style="font-size:11px;font-weight:700;opacity:.85">${wRows.length} job${wRows.length!==1?'s':''}</span>
+        </div>
+        <div class="table-wrap" style="border-radius:0 0 8px 8px;margin-bottom:0">
+          <table><thead><tr>
+            <th>PO</th><th>Customer</th><th>Address</th><th>Suburb</th>
+            <th>Profile</th><th>Colour</th><th style="text-align:center">H</th><th style="text-align:center">W</th>
+            <th>LH/Hd/RH</th><th style="text-align:center">Ext Rail</th>
+            <th>Install Date</th><th style="text-align:center">Effort</th><th>Notes / Flags</th><th>Source</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+
+  document.getElementById('app').innerHTML = `<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="font-size:16px;font-weight:900;color:#1f2937">📦 Ready to Order</h2>
+        <p style="font-size:11px;color:#6b7280">
+          Auto-calculated from Install Diary jobs with status REQUESTED or CONFIRMED.
+          Truck arrival = 2 weeks before install week. Order by = Friday before that.
+        </p>
+      </div>
+      <input id="rto-search" placeholder="Search..." onkeyup="renderRTO()" value="${escH(search)}"
+        style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:200px">
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 14px;font-size:11px">
+        <strong style="color:#991b1b">⚠ Missing Measurements:</strong> ${missing.length}
+        ${missing.length?` — <a href="#" onclick="document.getElementById('ms-filter').value='READY TO MEASURE';setView('measure');return false" style="color:#991b1b">Go measure &rarr;</a>`:''}
+      </div>
+      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#854d0e">📏 Extension Rail:</strong> ${extRail.length}</div>
+      <div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#166534">✓ Ready to Order:</strong> ${ready.length}</div>
+      <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#374151">Total:</strong> ${allRows.length} jobs across ${Object.keys(weeks).length} truck weeks</div>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:11px;color:#1e40af">
+      ℹ Jobs appear here automatically when you add them to the Diary with status REQUESTED or CONFIRMED.
+      Dimensions pull from the Measure Sheet when the suburb and customer match.
+      Jobs highlighted <span style="background:#fee2e2;padding:1px 5px;border-radius:2px;font-weight:700">red</span> need measurements before ordering.
+    </div>
+
+    ${weekHtml || '<div style="padding:40px;text-align:center;color:#6b7280">No REQUESTED or CONFIRMED jobs in the Diary yet</div>'}
+  </div>`;
+}
+
+// deleteRTORow kept for manual entries only
+function deleteRTORow(idx){ if(!confirm('Remove?'))return; rtoJobs.splice(idx,1); saveMod('rto',rtoJobs); renderRTO(); }
+
+
+// ═══════════════════════════════════════════════════════════════
+// TRUCK ARCHIVE
+// ═══════════════════════════════════════════════════════════════
+function renderArchive(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('arch-search')?.value||'').toLowerCase();
+  let rows=archiveJobs;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  const rowsH=rows.map((r,i)=>{
+    const orig=archiveJobs.indexOf(r);
+    return `<tr style="background:${i%2?'#f8fafc':'#fff'}">
+      <td style="font-weight:800;font-size:11px;color:#1d4ed8">${escH(r.sage)}</td>
+      <td style="font-size:10px;color:#6b7280">${escH(r.po)}</td>
+      <td style="font-weight:700">${escH(r.customer)}</td>
+      <td>${escH(r.address)}</td>
+      <td>${escH(r.suburb)}</td>
+      <td><span style="font-size:9px;font-weight:700;background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:3px">${escH(r.profile)}</span></td>
+      <td>${escH(r.colour)}</td>
+      <td style="font-size:11px">${escH(r.doorType)}</td>
+      <td style="text-align:center">${escH(r.actH)}</td>
+      <td style="text-align:center">${escH(r.actW)}</td>
+      <td style="font-size:10px">${escH(r.lhr)}</td>
+      <td style="text-align:center;font-weight:700;color:${r.extRail==='YES'?'#991b1b':'#166534'}">${r.extRail||'—'}</td>
+      <td>${fmtD(r.installDate)}</td>
+      <td style="text-align:center;font-weight:800;color:#1d4ed8">${r.effort||'—'}</td>
+      <td style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.notes)}">${escH(r.notes)}</td>
+      <td><button onclick="deleteArchRow(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🗄 Truck Archive</h2>
+      <p style="font-size:11px;color:#6b7280">All ordered jobs. ${archiveJobs.length} records.</p></div>
+      <div style="display:flex;gap:8px">
+        <input id="arch-search" placeholder="Search sage, customer, address..." onkeyup="renderArchive()" value="${escH(search)}"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:240px">
+        <button onclick="addArchRow()" style="background:#374151;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Record</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Sage Order #</th><th>PO</th><th>Customer</th><th>Address</th><th>Suburb</th>
+        <th>Profile</th><th>Colour</th><th>Door Type</th><th>Act H</th><th>Act W</th>
+        <th>LH/Hd/RH</th><th>Ext Rail</th><th>Install Date</th><th>Effort</th><th>Notes</th><th></th>
+      </tr></thead><tbody>${rowsH||'<tr><td colspan="16" style="text-align:center;padding:20px;color:#6b7280">No records</td></tr>'}</tbody></table>
+    </div>
+  </div>`;
+}
+function addArchRow(){
+  const sage=prompt('Sage Order # (required):');if(!sage)return;
+  const customer=prompt('Customer:');const address=prompt('Address:');
+  if(!customer||!address)return;
+  archiveJobs.unshift({sage,customer,address,suburb:'',profile:'',colour:'',doorType:'',actH:'',actW:'',lhr:'',qkClose:'NO',extRail:'NO',installDate:'',effort:'',notes:'',po:''});
+  saveMod('archive',archiveJobs);renderArchive();
+}
+function deleteArchRow(idx){if(!confirm('Delete?'))return;archiveJobs.splice(idx,1);saveMod('archive',archiveJobs);renderArchive();}
+
+// ═══════════════════════════════════════════════════════════════
+// HANDSET TRACKER
+// ═══════════════════════════════════════════════════════════════
+function renderHandsets(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('hs-search')?.value||'').toLowerCase();
+  let del=handDeliver, onsite=handOnsite;
+  if(search){del=del.filter(r=>JSON.stringify(r).toLowerCase().includes(search));onsite=onsite.filter(r=>JSON.stringify(r).toLowerCase().includes(search));}
+  const pending=handDeliver.filter(r=>!r.dateCollected).length;
+  const done=handDeliver.filter(r=>r.dateCollected).length;
+
+  const delRows=del.map(r=>{
+    const orig=handDeliver.indexOf(r);
+    const isDone=!!r.dateCollected;
+    const bg=isDone?'#dcfce7':'#fff';
+    return `<tr style="background:${bg}">
+      <td>${fmtD(r.dateCompleted)}</td>
+      <td style="font-weight:700">${escH(r.builder)}</td>
+      <td>${escH(r.address)}</td>
+      <td style="text-align:center;font-weight:800">${r.handsets||'—'}</td>
+      <td style="text-align:center">${r.keys||'—'}</td>
+      <td style="text-align:center">${r.basePlate||'—'}</td>
+      <td style="text-align:center">${r.manual||'—'}</td>
+      <td style="text-align:center">${r.powerMesh||'—'}</td>
+      <td style="text-align:center">${r.wallButton||'—'}</td>
+      <td>${isDone?fmtD(r.dateCollected):'<span style="color:#991b1b;font-weight:700;font-size:10px">PENDING</span>'}</td>
+      <td style="font-size:10px">${escH(r.collectedBy)}</td>
+      <td>
+        ${!isDone?`<button onclick="markCollected(${orig})" style="font-size:9px;padding:2px 7px;background:#166534;color:#fff;border:none;border-radius:3px;cursor:pointer">✓ Collected</button>`:'<span style="font-size:9px;color:#166534;font-weight:700">✓ Done</span>'}
+        <button onclick="delDeliver(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer;margin-left:3px">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const onsiteRows=onsite.map(r=>{
+    const orig=handOnsite.indexOf(r);
+    return `<tr>
+      <td>${fmtD(r.date)}</td>
+      <td style="font-weight:700">${escH(r.builder)}</td>
+      <td>${escH(r.address)}</td>
+      <td style="text-align:center;font-weight:800">${r.handsets||'—'}</td>
+      <td>${escH(r.whereLeft)}</td>
+      <td style="text-align:center;font-size:10px">${escH(r.photos)||'—'}</td>
+      <td style="font-size:10px">${escH(r.notes)}</td>
+      <td><button onclick="delOnsite(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🔑 Handset Tracker</h2>
+      <p style="font-size:11px;color:#6b7280">Handsets, remotes and accessories per completed install.</p></div>
+      <div style="display:flex;gap:8px">
+        <input id="hs-search" placeholder="Search..." value="${escH(search)}" onkeyup="renderHandsets()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:180px">
+        <button onclick="addHandset()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Entry</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#991b1b">⏳ Pending:</strong> ${pending}</div>
+      <div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#166534">✓ Collected:</strong> ${done}</div>
+      <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#854d0e">📍 Left on Site:</strong> ${handOnsite.length}</div>
+    </div>
+    <div class="tab-strip">
+      <button class="tab-btn${handsetTab==='deliver'?' active':''}" onclick="handsetTab='deliver';renderHandsets()">To Deliver / Collect (${handDeliver.length})</button>
+      <button class="tab-btn${handsetTab==='onsite'?' active':''}" onclick="handsetTab='onsite';renderHandsets()">Left on Site (${handOnsite.length})</button>
+    </div>
+    ${handsetTab==='deliver'?`
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Date Completed</th><th>Builder</th><th>Address</th>
+        <th style="text-align:center">Handsets</th><th style="text-align:center">Keys</th>
+        <th style="text-align:center">Base Plate</th><th style="text-align:center">Manual</th>
+        <th style="text-align:center">Power Mesh</th><th style="text-align:center">Wall Btn</th>
+        <th>Date Collected</th><th>Collected By</th><th style="min-width:110px">Actions</th>
+      </tr></thead><tbody>${delRows||'<tr><td colspan="12" style="text-align:center;padding:16px;color:#6b7280">No records</td></tr>'}</tbody></table>
+    </div>`:`
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Date</th><th>Builder</th><th>Address</th><th style="text-align:center">Handsets</th>
+        <th>Where Left</th><th style="text-align:center">Photos</th><th>Notes</th><th></th>
+      </tr></thead><tbody>${onsiteRows||'<tr><td colspan="8" style="text-align:center;padding:16px;color:#6b7280">No records</td></tr>'}</tbody></table>
+    </div>`}
+  </div>`;
+}
+function markCollected(idx){
+  const name=prompt('Collected by (name):');if(!name)return;
+  handDeliver[idx].dateCollected=new Date().toISOString().split('T')[0];
+  handDeliver[idx].collectedBy=name;
+  saveMod('handDeliver',handDeliver);renderHandsets();
+}
+function delDeliver(idx){if(!confirm('Delete?'))return;handDeliver.splice(idx,1);saveMod('handDeliver',handDeliver);renderHandsets();}
+function delOnsite(idx){if(!confirm('Delete?'))return;handOnsite.splice(idx,1);saveMod('handOnsite',handOnsite);renderHandsets();}
+function addHandset(){
+  const builder=prompt('Builder:');if(!builder)return;
+  const address=prompt('Site address:');if(!address)return;
+  const qty=prompt('Number of handsets:','2');
+  handDeliver.unshift({dateCompleted:new Date().toISOString().split('T')[0],builder,address,handsets:qty||'2',keys:'',basePlate:'',manual:'1',powerMesh:'',wallButton:'1',dateCollected:'',collectedBy:'',signature:''});
+  saveMod('handDeliver',handDeliver);renderHandsets();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REP RUN SHEET
+// ═══════════════════════════════════════════════════════════════
+function renderRepRun(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const ticked=repRun.filter(r=>r.tick);
+  const zoneFilter=document.getElementById('rr-zone')?.value||'ALL';
+  let rows=repRun;
+  if(zoneFilter!=='ALL') rows=rows.filter(r=>r.zone===zoneFilter);
+  const zones=[...new Set(repRun.map(r=>r.zone).filter(Boolean))].sort();
+  const mapsUrl=ticked.length>0?'https://www.google.com/maps/dir/'+ticked.map(r=>encodeURIComponent((r.address||'')+', '+(r.suburb||'')+', QLD')).join('/'):null;
+
+  const rowsH=rows.map(r=>{
+    const orig=repRun.indexOf(r);
+    const zc=ZONE_COLORS[r.zone]||ZONE_COLORS['UNKNOWN'];
+    const bg=r.tick?'#dbeafe':r.missingPO==='Yes'?'#fef9c3':'#fff';
+    return `<tr style="background:${bg}">
+      <td style="text-align:center"><input type="checkbox" ${r.tick?'checked':''} onchange="repRun[${orig}].tick=this.checked;saveMod('repRun',repRun);renderRepRun()" style="width:16px;height:16px;cursor:pointer"></td>
+      <td style="font-weight:700">${escH(r.customer)}</td>
+      <td>${escH(r.address)}</td>
+      <td>${escH(r.suburb)}</td>
+      <td style="text-align:center;font-weight:800;color:#1d4ed8">${r.doors||'—'}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:${zc.bg};color:${zc.c}">${r.zone||'—'}</span></td>
+      <td style="text-align:center"><span style="font-size:10px;font-weight:700;color:${r.onMeasureSheet==='Yes'?'#166534':'#991b1b'}">${r.onMeasureSheet==='Yes'?'✓ Yes':'✗ No'}</span></td>
+      <td style="text-align:center"><span style="font-size:10px;font-weight:700;color:${r.missingPO==='Yes'?'#991b1b':'#166534'}">${r.missingPO==='Yes'?'⚠ Yes':'—'}</span></td>
+      <td style="font-size:10px;color:#6b7280">${r.lastUpdated||'—'}</td>
+      <td><button onclick="delRepRow(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🗺 Rep Run Sheet</h2>
+      <p style="font-size:11px;color:#6b7280">Tick jobs to build a measure run. Generates a Google Maps route with all stops.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="rr-zone" onchange="renderRepRun()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All zones</option>
+          ${zones.map(z=>`<option${z===zoneFilter?' selected':''}>${z}</option>`).join('')}
+        </select>
+        ${mapsUrl?`<a href="${mapsUrl}" target="_blank" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;text-decoration:none">🗺 Open Route (${ticked.length} stops)</a>`:'<span style="font-size:11px;color:#9ca3af">Tick jobs to build route</span>'}
+        <button onclick="repRun.forEach(r=>r.tick=false);saveMod('repRun',repRun);renderRepRun()" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">Clear All</button>
+        <button onclick="addRepRow()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add</button>
+      </div>
+    </div>
+    ${ticked.length?`<div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:11px;color:#166534;font-weight:700">✓ ${ticked.length} job${ticked.length>1?'s':''} selected — ${ticked.reduce((s,r)=>s+(Number(r.doors)||0),0)} doors total</div>`:''}
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th style="width:40px;text-align:center">✓</th>
+        <th>Customer</th><th>Address</th><th>Suburb</th><th style="text-align:center"># Doors</th>
+        <th>Zone</th><th style="text-align:center">On Measure Sheet</th>
+        <th style="text-align:center">Missing PO</th><th>Last Updated</th><th></th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#6b7280">No records</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function delRepRow(idx){if(!confirm('Remove?'))return;repRun.splice(idx,1);saveMod('repRun',repRun);renderRepRun();}
+function addRepRow(){
+  const customer=prompt('Customer:');if(!customer)return;
+  const address=prompt('Address:');if(!address)return;
+  const suburb=prompt('Suburb:')||'';
+  repRun.unshift({tick:false,customer,address,suburb,doors:1,zone:getZone(suburb)||'',onMeasureSheet:'No',missingPO:'Yes',lastUpdated:new Date().toLocaleDateString('en-AU')});
+  saveMod('repRun',repRun);renderRepRun();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CERTIFIER SHEET
+// ═══════════════════════════════════════════════════════════════
+function renderCertifier(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const eligible=jobs.filter(j=>(j.status==='CONFIRMED'||j.status==='COMPLETED')&&j.form15==='YES');
+  const byDate={};
+  eligible.forEach(j=>{if(!byDate[j.date])byDate[j.date]=[];byDate[j.date].push(j);});
+  const emailBtns=Object.keys(byDate).sort().map(date=>{
+    const dj=byDate[date];
+    const link=buildCertEmail(dj,date);
+    return `<a href="${link}" style="display:inline-block;margin:3px;font-size:10px;padding:5px 12px;background:#7c3aed;color:#fff;border-radius:5px;text-decoration:none;font-weight:700">📋 ${formatDate(date)} (${dj.length} job${dj.length>1?'s':''})</a>`;
+  }).join('');
+  const rows=eligible.map((j,i)=>{
+    const f=FITTERS.find(f=>f.id===j.fitter);
+    const m=getStatusMeta(j.status);
+    return `<tr style="background:${i%2?'#f8fafc':'#fff'}">
+      <td style="font-weight:700">${fmtD(j.date)}</td>
+      <td style="font-weight:700;color:${f?.color||'#000'}">${(j.fitter||'').toUpperCase()}</td>
+      <td style="font-weight:700">${escH(j.customer)}</td>
+      <td>${escH(j.address)}</td><td>${escH(j.suburb)}</td>
+      <td style="font-size:10px">${escH(j.doors)}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;background:${m.bg};color:${m.color}">${j.status}</span></td>
+      <td style="text-align:center;font-weight:800;color:#3730a3">YES</td>
+      <td style="font-size:10px;color:#6b7280">${escH(j.internalNotes)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="margin-bottom:14px">
+      <h2 style="font-size:16px;font-weight:900;color:#1f2937">📋 Certifier Sheet — Form 15/43</h2>
+      <p style="font-size:11px;color:#6b7280">CONFIRMED and COMPLETED jobs where Form 15/43 is required. Certifier: <strong>${cfg_live.certifierEmail||'(not set in Config)'}</strong></p>
+    </div>
+    <div style="background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:800;color:#7c3aed;margin-bottom:8px">📧 Send Certifier Emails by Date:</div>
+      <div>${emailBtns||'<span style="font-size:11px;color:#6b7280">No eligible jobs — mark jobs as CONFIRMED/COMPLETED with Form 15/43 = YES</span>'}</div>
+    </div>
+    <div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:#92400e;font-weight:700">
+      ⚠ Check any CONFIRMED jobs before sending — they may not yet be complete
+    </div>
+    <div class="table-wrap">
+      <table><thead style="background:#f5f3ff"><tr>
+        <th style="color:#7c3aed">Install Date</th><th style="color:#7c3aed">Fitter</th>
+        <th style="color:#7c3aed">Builder</th><th style="color:#7c3aed">Address</th>
+        <th style="color:#7c3aed">Suburb</th><th style="color:#7c3aed">Door Details</th>
+        <th style="color:#7c3aed">Status</th><th style="color:#7c3aed;text-align:center">Form 15/43</th>
+        <th style="color:#7c3aed">Internal Notes</th>
+      </tr></thead>
+      <tbody>${rows||'<tr><td colspan="9" style="text-align:center;padding:20px;color:#6b7280">No eligible jobs</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPERVISOR DIRECTORY
+// ═══════════════════════════════════════════════════════════════
+function renderDirectory(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('dir-search')?.value||'').toLowerCase();
+  let rows=supervisors;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  const rowsH=rows.map((r,i)=>{
+    const orig=supervisors.indexOf(r);
+    return `<tr style="background:${i%2?'#f8fafc':'#fff'}">
+      <td style="font-weight:800">${escH(r.builder)}</td>
+      <td style="font-weight:600">${escH(r.supervisor)}</td>
+      <td><a href="tel:${r.mobile}" style="color:#1d4ed8;text-decoration:none;font-weight:600">${escH(r.mobile)}</a></td>
+      <td><a href="mailto:${r.email}" style="color:#1d4ed8;text-decoration:none;font-size:11px">${escH(r.email)}</a></td>
+      <td style="font-size:11px">${escH(r.other)}</td>
+      <td style="font-size:10px;color:#6b7280">${escH(r.notes)}</td>
+      <td><button onclick="delDirRow(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">📞 Supervisor Directory</h2>
+      <p style="font-size:11px;color:#6b7280">${supervisors.length} contacts. Click phone numbers or emails to call/email directly.</p></div>
+      <div style="display:flex;gap:8px">
+        <input id="dir-search" placeholder="Search builder, name, phone..." value="${escH(search)}" onkeyup="renderDirectory()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:240px">
+        <button onclick="addDirRow()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Contact</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Builder</th><th>Supervisor</th><th>Mobile</th><th>Email</th><th>Other Contact</th><th>Notes</th><th></th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="7" style="text-align:center;padding:20px;color:#6b7280">No contacts</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function addDirRow(){
+  const builder=prompt('Builder name:');if(!builder)return;
+  const supervisor=prompt('Supervisor name:')||'';
+  const mobile=prompt('Mobile:')||'';
+  const email=prompt('Email:')||'';
+  supervisors.push({builder,supervisor,mobile,email,other:'',notes:''});
+  saveMod('supervisors',supervisors);renderDirectory();
+}
+function delDirRow(idx){if(!confirm('Delete contact?'))return;supervisors.splice(idx,1);saveMod('supervisors',supervisors);renderDirectory();}
+
+// ═══════════════════════════════════════════════════════════════
+// STOCK DOORS
+// ═══════════════════════════════════════════════════════════════
+const STOCK_ST=['IN STOCK','DUPLICATE - SEND BACK','ASSIGNED TO JOB','DUMP','SOLD'];
+const STOCK_COLORS={'IN STOCK':{bg:'#dcfce7',c:'#166534'},'DUPLICATE - SEND BACK':{bg:'#fef9c3',c:'#854d0e'},'ASSIGNED TO JOB':{bg:'#dbeafe',c:'#1d4ed8'},'DUMP':{bg:'#fee2e2',c:'#991b1b'},'SOLD':{bg:'#f3f4f6',c:'#6b7280'}};
+
+function renderStock(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('stock-search')?.value||'').toLowerCase();
+  const stF=document.getElementById('stock-status')?.value||'ALL';
+  let rows=stockDoors;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  if(stF!=='ALL') rows=rows.filter(r=>r.status===stF);
+  const counts={};STOCK_ST.forEach(s=>counts[s]=stockDoors.filter(r=>r.status===s).length);
+  const pills=STOCK_ST.map(s=>{const sc=STOCK_COLORS[s]||{bg:'#f3f4f6',c:'#374151'};return `<div style="background:${sc.bg};color:${sc.c};border:1px solid ${sc.c}30;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap" onclick="document.getElementById('stock-status').value='${s}';renderStock()">${s}: ${counts[s]||0}</div>`;}).join('');
+
+  const rowsH=rows.map((r,i)=>{
+    const orig=stockDoors.indexOf(r);
+    const sc=STOCK_COLORS[r.status]||{bg:'#f3f4f6',c:'#374151'};
+    const bg=(r.status==='DUMP')?'#fee2e2':(r.status==='DUPLICATE - SEND BACK')?'#fef9c3':(i%2?'#f8fafc':'#fff');
+    return `<tr style="background:${bg}">
+      <td style="font-weight:700">${escH(r.builder)}</td>
+      <td style="font-size:10px;color:#6b7280">${escH(r.po)}</td>
+      <td>${escH(r.address)}</td><td>${escH(r.suburb)}</td>
+      <td><span style="font-size:9px;font-weight:700;background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:3px">${escH(r.profile)}</span></td>
+      <td>${escH(r.colour)}</td>
+      <td style="font-size:11px">${escH(r.doorType)}</td>
+      <td style="text-align:center">${escH(r.doorH)}</td>
+      <td style="text-align:center">${escH(r.doorW)}</td>
+      <td style="font-weight:700;color:#1d4ed8;font-size:11px">${escH(r.prodSon)}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:${sc.bg};color:${sc.c};white-space:nowrap">${r.status||'IN STOCK'}</span></td>
+      <td style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.comments)}">${escH(r.comments)}</td>
+      <td>
+        <select onchange="stockDoors[${orig}].status=this.value;saveMod('stock',stockDoors);renderStock()" style="font-size:9px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
+          ${STOCK_ST.map(s=>`<option${s===r.status?' selected':''}>${s}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🚪 Stock Doors</h2>
+      <p style="font-size:11px;color:#6b7280">Spare, duplicate and stock doors. ${stockDoors.length} doors.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="stock-search" placeholder="Search..." value="${escH(search)}" onkeyup="renderStock()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:180px">
+        <select id="stock-status" onchange="renderStock()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All (${stockDoors.length})</option>
+          ${STOCK_ST.map(s=>`<option value="${s}"${stF===s?' selected':''}>${s} (${counts[s]||0})</option>`).join('')}
+        </select>
+        <button onclick="addStockRow()" style="background:#374151;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Door</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${pills}</div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Builder</th><th>PO / Ref</th><th>Address</th><th>Suburb</th>
+        <th>Profile</th><th>Colour</th><th>Type</th><th>H</th><th>W</th>
+        <th>SON / Prod #</th><th>Status</th><th>Comments</th><th>Change Status</th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="13" style="text-align:center;padding:20px;color:#6b7280">No stock doors</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function addStockRow(){
+  const builder=prompt('Builder / Customer:');if(!builder)return;
+  const prodSon=prompt('SON / Production #:')||'';
+  const profile=prompt('Profile (e.g. STRUTLOK):')||'';
+  const colour=prompt('Colour:')||'';
+  stockDoors.unshift({builder,po:'',address:'',suburb:'',profile,colour,doorType:'',doorH:'',doorW:'',prodSon,status:'IN STOCK',comments:''});
+  saveMod('stock',stockDoors);renderStock();
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// PATCH: SPLIT HANDSETS + BUILDER SUMMARY
+// Replaces the merged handset tab approach with 3 separate views
+// and adds the full Builder Summary module
+// ═══════════════════════════════════════════════════════════════
+
+// Extra seed data injected by patch
+let handRecords = loadMod('handRecords','handsets_records');
+let builderSummary = loadMod('builderSummary','builder_summary');
+let measureJobs    = loadMod('measure',       'measure');
+let rtoJobs        = loadMod('rto',           'rto');
+let archiveJobs    = loadMod('archive',       'archive');
+let handDeliver    = loadMod('handDeliver',   'handsets_deliver');
+let handOnsite     = loadMod('handOnsite',    'handsets_onsite');
+let repRun         = loadMod('repRun',        'rep_run');
+let supervisors    = loadMod('supervisors',   'supervisors');
+let stockDoors     = loadMod('stock',         'stock');
+let handsetTab     = 'deliver';
+
+
+// ── HANDSETS: now 3 separate nav tabs ────────────────────────────
+// handDeliver = To Deliver  (already loaded)
+// handOnsite  = Left on Site (already loaded)
+// handRecords = Full Records archive
+
+function renderHandDeliver(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('hd-search')?.value||'').toLowerCase();
+  let rows=handDeliver;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  const pending=rows.filter(r=>!r.dateCollected);
+  const collected=rows.filter(r=>r.dateCollected);
+
+  function makeRows(arr,showBtn){
+    return arr.map(r=>{
+      const orig=handDeliver.indexOf(r);
+      const done=!!r.dateCollected;
+      return `<tr style="background:${done?'#dcfce7':'#fff'}">
+        <td>${fmtD(r.dateCompleted)}</td>
+        <td style="font-weight:700">${escH(r.builder)}</td>
+        <td>${escH(r.address)}</td>
+        <td style="text-align:center;font-weight:800">${r.handsets||'—'}</td>
+        <td style="text-align:center">${r.keys||'—'}</td>
+        <td style="text-align:center">${r.basePlate||'—'}</td>
+        <td style="text-align:center">${r.manual||'—'}</td>
+        <td style="text-align:center">${r.powerMesh||'—'}</td>
+        <td style="text-align:center">${r.wallButton||'—'}</td>
+        <td>${done?fmtD(r.dateCollected):'<span style="color:#991b1b;font-weight:700;font-size:10px">⏳ PENDING</span>'}</td>
+        <td style="font-size:10px">${escH(r.collectedBy)}</td>
+        <td style="font-size:10px">${escH(r.signature)}</td>
+        <td style="white-space:nowrap">
+          ${showBtn&&!done?`<button onclick="markHSCollected(${orig})" style="font-size:9px;padding:2px 8px;background:#166534;color:#fff;border:none;border-radius:3px;cursor:pointer">✓ Mark Collected</button> `:''}
+          <button onclick="delHSDeliver(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🔑 Handsets To Deliver</h2>
+      <p style="font-size:11px;color:#6b7280">Handsets, keys and accessories pending collection by builders.</p></div>
+      <div style="display:flex;gap:8px">
+        <input id="hd-search" placeholder="Search builder, address..." value="${escH(search)}" onkeyup="renderHandDeliver()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:200px">
+        <button onclick="addHSDeliver()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Entry</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#991b1b">⏳ Pending Collection:</strong> ${pending.length}</div>
+      <div style="background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:8px 14px;font-size:11px"><strong style="color:#166534">✓ Collected:</strong> ${collected.length}</div>
+    </div>
+
+    ${pending.length?`
+    <div style="margin-bottom:4px;padding:6px 12px;background:#991b1b;color:#fff;font-size:11px;font-weight:800;border-radius:6px 6px 0 0">⏳ PENDING COLLECTION (${pending.length})</div>
+    <div class="table-wrap" style="border-radius:0 0 8px 8px;margin-bottom:16px">
+      <table><thead><tr>
+        <th>Date Completed</th><th>Builder</th><th>Address</th>
+        <th style="text-align:center">Handsets</th><th style="text-align:center">Keys</th>
+        <th style="text-align:center">Base Plate</th><th style="text-align:center">Manual</th>
+        <th style="text-align:center">Power Mesh</th><th style="text-align:center">Wall Btn</th>
+        <th>Date Collected</th><th>Collected By</th><th>Signature</th><th>Actions</th>
+      </tr></thead><tbody>${makeRows(pending,true)}</tbody></table>
+    </div>`:''}
+
+    <div style="margin-bottom:4px;padding:6px 12px;background:#166534;color:#fff;font-size:11px;font-weight:800;border-radius:6px 6px 0 0">✓ COLLECTED (${collected.length})</div>
+    <div class="table-wrap" style="border-radius:0 0 8px 8px">
+      <table><thead><tr>
+        <th>Date Completed</th><th>Builder</th><th>Address</th>
+        <th style="text-align:center">Handsets</th><th style="text-align:center">Keys</th>
+        <th style="text-align:center">Base Plate</th><th style="text-align:center">Manual</th>
+        <th style="text-align:center">Power Mesh</th><th style="text-align:center">Wall Btn</th>
+        <th>Date Collected</th><th>Collected By</th><th>Signature</th><th></th>
+      </tr></thead><tbody>${makeRows(collected,false)||'<tr><td colspan="13" style="text-align:center;padding:14px;color:#6b7280">None yet</td></tr>'}</tbody></table>
+    </div>
+  </div>`;
+}
+
+function addHSDeliver(){
+  const builder=prompt('Builder:');if(!builder)return;
+  const address=prompt('Site address:');if(!address)return;
+  const qty=prompt('Number of handsets:','2')||'2';
+  handDeliver.unshift({dateCompleted:new Date().toISOString().split('T')[0],builder,address,
+    handsets:qty,keys:'',basePlate:'',manual:'1',powerMesh:'',wallButton:'1',
+    dateCollected:'',collectedBy:'',signature:''});
+  saveMod('handDeliver',handDeliver);renderHandDeliver();
+}
+function markHSCollected(idx){
+  const name=prompt('Collected by (print name):');if(!name)return;
+  handDeliver[idx].dateCollected=new Date().toISOString().split('T')[0];
+  handDeliver[idx].collectedBy=name;
+  // Also push to records
+  handRecords.unshift({...handDeliver[idx]});
+  saveMod('handDeliver',handDeliver);saveMod('handRecords',handRecords);
+  renderHandDeliver();
+}
+function delHSDeliver(idx){if(!confirm('Delete?'))return;handDeliver.splice(idx,1);saveMod('handDeliver',handDeliver);renderHandDeliver();}
+
+// ── LEFT ON SITE ──────────────────────────────────────────────
+function renderHandOnsite(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('ho-search')?.value||'').toLowerCase();
+  let rows=handOnsite;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+
+  const rowsH=rows.map(r=>{
+    const orig=handOnsite.indexOf(r);
+    return `<tr>
+      <td>${fmtD(r.date)}</td>
+      <td style="font-weight:700">${escH(r.builder)}</td>
+      <td>${escH(r.address)}</td>
+      <td style="text-align:center;font-weight:800">${r.handsets||'—'}</td>
+      <td style="text-align:center">${r.keys||'—'}</td>
+      <td style="text-align:center">${r.basePlate||'—'}</td>
+      <td style="text-align:center">${r.manual||'—'}</td>
+      <td style="text-align:center">${r.powerMesh||'—'}</td>
+      <td style="text-align:center">${r.wallButton||'—'}</td>
+      <td style="font-size:11px">${escH(r.whereLeft)}</td>
+      <td style="text-align:center;font-size:10px;font-weight:700;color:${r.photos==='YES'?'#166534':'#991b1b'}">${r.photos||'—'}</td>
+      <td style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escH(r.notes)}">${escH(r.notes)}</td>
+      <td><button onclick="delHSOnsite(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">📍 Handsets Left on Site</h2>
+      <p style="font-size:11px;color:#6b7280">Handsets left at the property by fitters at time of install. ${handOnsite.length} records.</p></div>
+      <div style="display:flex;gap:8px">
+        <input id="ho-search" placeholder="Search..." value="${escH(search)}" onkeyup="renderHandOnsite()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:200px">
+        <button onclick="addHSOnsite()" style="background:#854d0e;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Entry</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Date</th><th>Builder</th><th>Address</th>
+        <th style="text-align:center">Handsets</th><th style="text-align:center">Keys</th>
+        <th style="text-align:center">Base Plate</th><th style="text-align:center">Manual</th>
+        <th style="text-align:center">Power Mesh</th><th style="text-align:center">Wall Btn</th>
+        <th>Where Left on Site</th><th style="text-align:center">Photos</th><th>Notes</th><th></th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="13" style="text-align:center;padding:20px;color:#6b7280">No records</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+function addHSOnsite(){
+  const builder=prompt('Builder:');if(!builder)return;
+  const address=prompt('Address:');if(!address)return;
+  const whereLeft=prompt('Where left on site (e.g. Left on top of motor):')||'';
+  const photos=confirm('Photos taken to confirm?')?'YES':'NO';
+  handOnsite.unshift({date:new Date().toISOString().split('T')[0],builder,address,
+    handsets:'2',keys:'',basePlate:'',manual:'',powerMesh:'',wallButton:'',
+    whereLeft,photos,notes:''});
+  saveMod('handOnsite',handOnsite);renderHandOnsite();
+}
+function delHSOnsite(idx){if(!confirm('Delete?'))return;handOnsite.splice(idx,1);saveMod('handOnsite',handOnsite);renderHandOnsite();}
+
+// ── HANDSET RECORDS (archive) ─────────────────────────────────
+function renderHandRecords(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('hr-search')?.value||'').toLowerCase();
+  let rows=handRecords;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+
+  const rowsH=rows.map((r,i)=>{
+    const orig=handRecords.indexOf(r);
+    return `<tr style="background:${i%2?'#f8fafc':'#fff'}">
+      <td>${fmtD(r.dateCompleted)}</td>
+      <td style="font-weight:700">${escH(r.builder)}</td>
+      <td>${escH(r.address)}</td>
+      <td style="text-align:center;font-weight:800">${r.handsets||'—'}</td>
+      <td style="text-align:center">${r.keys||'—'}</td>
+      <td style="text-align:center">${r.basePlate||'—'}</td>
+      <td style="text-align:center">${r.manual||'—'}</td>
+      <td style="text-align:center">${r.powerMesh||'—'}</td>
+      <td style="text-align:center">${r.wallButton||'—'}</td>
+      <td style="font-weight:600;color:#166534">${fmtD(r.dateCollected)}</td>
+      <td style="font-size:11px">${escH(r.collectedBy)}</td>
+      <td style="font-size:10px;font-style:italic;color:#6b7280">${escH(r.signature)}</td>
+      <td><button onclick="delHSRecord(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">📚 Handset Records</h2>
+      <p style="font-size:11px;color:#6b7280">Complete history of all handset collections. ${handRecords.length} records. Auto-populated when items are marked Collected in the To Deliver tab.</p></div>
+      <input id="hr-search" placeholder="Search builder, address, collected by..." value="${escH(search)}" onkeyup="renderHandRecords()"
+        style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:260px">
+    </div>
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Date Completed</th><th>Builder</th><th>Address</th>
+        <th style="text-align:center">Handsets</th><th style="text-align:center">Keys</th>
+        <th style="text-align:center">Base Plate</th><th style="text-align:center">Manual</th>
+        <th style="text-align:center">Power Mesh</th><th style="text-align:center">Wall Btn</th>
+        <th>Date Collected</th><th>Collected By</th><th>Signature</th><th></th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="13" style="text-align:center;padding:20px;color:#6b7280">No records yet — records appear here when items are marked Collected in the To Deliver tab</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+function delHSRecord(idx){if(!confirm('Delete this record?'))return;handRecords.splice(idx,1);saveMod('handRecords',handRecords);renderHandRecords();}
+
+// ═══════════════════════════════════════════════════════════════
+// BUILDER SUMMARY
+// ═══════════════════════════════════════════════════════════════
+const BS_STATUSES=['COMPLETED','INSTALL CONFIRMED','INSTALL BOOKED','MEASURED','AWAITING TO MEASURE','AWAITING UPDATE','AWAITING BOOKING'];
+const BS_COLORS={
+  'COMPLETED':           {bg:'#dcfce7',c:'#166534'},
+  'INSTALL CONFIRMED':   {bg:'#dbeafe',c:'#1d4ed8'},
+  'INSTALL BOOKED':      {bg:'#e0e7ff',c:'#3730a3'},
+  'MEASURED':            {bg:'#d1fae5',c:'#065f46'},
+  'AWAITING TO MEASURE': {bg:'#fef9c3',c:'#854d0e'},
+  'AWAITING UPDATE':     {bg:'#ede9fe',c:'#7c3aed'},
+  'AWAITING BOOKING':    {bg:'#f3f4f6',c:'#374151'},
+};
+const BS_FLAGS={
+  'COMPLETED':       {bg:'#dcfce7',c:'#166534'},
+  'MISSING MEASURE': {bg:'#fee2e2',c:'#991b1b'},
+  'MISSING PROFILE': {bg:'#fee2e2',c:'#991b1b'},
+  'REQUESTED':       {bg:'#fef9c3',c:'#854d0e'},
+  'AWAITING BOOKING':{bg:'#f3f4f6',c:'#6b7280'},
+};
+let bsBuilderFilter='ALL';
+
+function renderBuilderSummary(){
+  document.getElementById('week-nav').style.display='none';
+  document.getElementById('alert-banner').style.display='none';
+  const search=(document.getElementById('bs-search')?.value||'').toLowerCase();
+  const statusF=document.getElementById('bs-status')?.value||'ALL';
+  bsBuilderFilter=document.getElementById('bs-builder')?.value||'ALL';
+
+  let rows=builderSummary;
+  if(search) rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(search));
+  if(statusF!=='ALL') rows=rows.filter(r=>r.status===statusF);
+  if(bsBuilderFilter!=='ALL') rows=rows.filter(r=>r.builder===bsBuilderFilter);
+
+  const builders=[...new Set(builderSummary.map(r=>r.builder).filter(Boolean))].sort();
+  const counts={};BS_STATUSES.forEach(s=>counts[s]=builderSummary.filter(r=>r.status===s).length);
+
+  // Flags needing attention
+  const flags=builderSummary.filter(r=>r.flag&&!['COMPLETED','REQUESTED'].includes(r.flag));
+  const overdue=builderSummary.filter(r=>{
+    if(!r.slBookedDate||r.status==='COMPLETED') return false;
+    const d=new Date(r.slBookedDate+'T00:00:00');
+    return d<new Date() && r.status!=='COMPLETED';
+  });
+
+  const statusPills=BS_STATUSES.map(s=>{
+    const sc=BS_COLORS[s]||{bg:'#f3f4f6',c:'#374151'};
+    return `<div style="background:${sc.bg};color:${sc.c};border:1px solid ${sc.c}30;padding:5px 10px;border-radius:6px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap" onclick="document.getElementById('bs-status').value='${s}';renderBuilderSummary()">${s}: ${counts[s]||0}</div>`;
+  }).join('');
+
+  const rowsH=rows.map((r,i)=>{
+    const orig=builderSummary.indexOf(r);
+    const sc=BS_COLORS[r.status]||{bg:'#f8fafc',c:'#374151'};
+    const fc=BS_FLAGS[r.flag]||{bg:'#f3f4f6',c:'#6b7280'};
+    const isOverdue=r.slBookedDate&&new Date(r.slBookedDate+'T00:00:00')<new Date()&&r.status!=='COMPLETED';
+    const bg=isOverdue?'#fee2e2':sc.bg+'30';
+    const updateLink=buildBuilderSummaryEmail(r);
+    return `<tr style="background:${bg}">
+      <td style="font-weight:800">${escH(r.builder)}</td>
+      <td style="font-size:10px;color:#6b7280">${escH(r.po)}</td>
+      <td>${escH(r.address)}</td>
+      <td>${escH(r.suburb)}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:${sc.bg};color:${sc.c};white-space:nowrap">${r.status||'—'}</span></td>
+      <td style="font-size:11px">${fmtD(r.builderReqDate)}</td>
+      <td style="font-weight:700;color:${isOverdue?'#991b1b':'#1f2937'}">${fmtD(r.slBookedDate)}${isOverdue?' <span style="font-size:9px;color:#991b1b">⚠ OVERDUE</span>':''}</td>
+      <td style="font-size:11px">${fmtD(r.builderNewDate)||'—'}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;background:${fc.bg};color:${fc.c};white-space:nowrap">${r.flag||'—'}</span></td>
+      <td><span style="font-size:9px;font-weight:700;background:#e0e7ff;color:#3730a3;padding:1px 5px;border-radius:3px">${escH(r.profile)}</span></td>
+      <td style="font-size:11px">${escH(r.colour)}</td>
+      <td style="font-size:10px;color:#6b7280">${fmtD(r.lastUpdated)}</td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <select onchange="builderSummary[${orig}].status=this.value;builderSummary[${orig}].lastUpdated=new Date().toISOString().split('T')[0];saveMod('builderSummary',builderSummary);renderBuilderSummary()" style="font-size:9px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px;cursor:pointer;max-width:110px">
+            ${BS_STATUSES.map(s=>`<option${s===r.status?' selected':''}>${s}</option>`).join('')}
+          </select>
+          <a href="${updateLink}" style="font-size:9px;padding:2px 7px;background:#065f46;color:#fff;border-radius:3px;text-decoration:none;font-weight:700">📧</a>
+          <button onclick="deleteBSRow(${orig})" style="font-size:9px;padding:2px 5px;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:3px;cursor:pointer">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('app').innerHTML=`<div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div><h2 style="font-size:16px;font-weight:900;color:#1f2937">🏗 Builder Summary</h2>
+      <p style="font-size:11px;color:#6b7280">Builder-facing job status board. Track requests vs Steel-Line booked dates. ${builderSummary.length} jobs.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="bs-search" placeholder="Search..." value="${escH(search)}" onkeyup="renderBuilderSummary()"
+          style="font-size:11px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;width:180px">
+        <select id="bs-builder" onchange="renderBuilderSummary()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All Builders</option>
+          ${builders.map(b=>`<option${b===bsBuilderFilter?' selected':''}>${b}</option>`).join('')}
+        </select>
+        <select id="bs-status" onchange="renderBuilderSummary()" style="font-size:11px;padding:6px 8px;border:1px solid #d1d5db;border-radius:6px">
+          <option value="ALL">All Statuses</option>
+          ${BS_STATUSES.map(s=>`<option${s===statusF?' selected':''}>${s} (${counts[s]||0})</option>`).join('')}
+        </select>
+        <button onclick="addBSRow()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">+ Add Job</button>
+        <button onclick="sendAllBSEmails()" style="background:#065f46;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">📧 Send All Updates</button>
+      </div>
+    </div>
+
+    ${overdue.length?`<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#991b1b;font-weight:700">⚠ ${overdue.length} job${overdue.length>1?'s':''} past their booked date — review and update status</div>`:''}
+    ${flags.length?`<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:#854d0e;font-weight:700">⚠ ${flags.length} job${flags.length>1?'s':''} flagged — check MISSING MEASURE / MISSING PROFILE issues</div>`:''}
+
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${statusPills}</div>
+
+    <div class="table-wrap">
+      <table><thead><tr>
+        <th>Builder</th><th>PO</th><th>Address</th><th>Suburb</th><th>Status</th>
+        <th>Builder Req Date</th><th>SL Booked Date</th><th>Builder New Date</th>
+        <th>Flag</th><th>Profile</th><th>Colour</th><th>Last Updated</th><th>Actions</th>
+      </tr></thead>
+      <tbody>${rowsH||'<tr><td colspan="13" style="text-align:center;padding:20px;color:#6b7280">No records found</td></tr>'}</tbody>
+    </table></div>
+
+    <div style="margin-top:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 16px">
+      <div style="font-size:12px;font-weight:800;color:#166534;margin-bottom:8px">➕ Builder can submit a new install request below:</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
+        <div><div style="font-size:10px;color:#6b7280;font-weight:700;margin-bottom:3px">BUILDER</div><select id="bs-new-builder" style="width:100%;font-size:11px;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px">${cfg_live.builders.map(b=>`<option>${b}</option>`).join('')}</select></div>
+        <div><div style="font-size:10px;color:#6b7280;font-weight:700;margin-bottom:3px">ADDRESS</div><input id="bs-new-address" placeholder="Site address" style="width:100%;font-size:11px;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px"></div>
+        <div><div style="font-size:10px;color:#6b7280;font-weight:700;margin-bottom:3px">SUBURB</div><input id="bs-new-suburb" placeholder="Suburb" style="width:100%;font-size:11px;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px"></div>
+        <div><div style="font-size:10px;color:#6b7280;font-weight:700;margin-bottom:3px">REQUESTED DATE</div><input id="bs-new-date" type="date" style="width:100%;font-size:11px;padding:5px 8px;border:1px solid #d1d5db;border-radius:5px"></div>
+        <button onclick="submitBSRequest()" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:11px;font-weight:800;cursor:pointer">Submit Request</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildBuilderSummaryEmail(r){
+  const sub=encodeURIComponent(`Install Status Update — ${r.customer||r.builder} — ${r.address}`);
+  const body=encodeURIComponent(`Hi ${r.builder},\n\nPlease find below a status update for your upcoming installation:\n\nAddress: ${r.address}, ${r.suburb}\nPurchase Order: ${r.po||'TBC'}\nDoor: ${r.profile||''} ${r.colour||''}\nCurrent Status: ${r.status||''}\nSteel-Line Booked Date: ${r.slBookedDate?new Date(r.slBookedDate+'T00:00:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):'-'}\n\nPlease contact us if you need to update your requested date or have any questions.\n\nRegards,\n${cfg_live.branchName||'Steel-Line'} Scheduling`);
+  return `mailto:?subject=${sub}&body=${body}`;
+}
+
+function sendAllBSEmails(){
+  const toSend=builderSummary.filter(r=>r.send==='YES'&&r.status!=='COMPLETED');
+  if(!toSend.length){alert('No jobs marked to send.');return;}
+  if(!confirm(`Open ${toSend.length} email${toSend.length>1?'s':''} for jobs marked to send? (Each will open in Outlook)`))return;
+  toSend.forEach((r,i)=>setTimeout(()=>window.open(buildBuilderSummaryEmail(r),'_blank'),i*400));
+}
+
+function addBSRow(){
+  const builder=prompt('Builder:');if(!builder)return;
+  const address=prompt('Address:');if(!address)return;
+  const suburb=prompt('Suburb:')||'';
+  const booked=prompt('SL Booked Date (YYYY-MM-DD):')||'';
+  builderSummary.unshift({builder,po:'',address,suburb,status:'AWAITING BOOKING',
+    builderReqDate:'',slBookedDate:booked,builderNewDate:'',builderNotes:'',
+    flag:'AWAITING BOOKING',profile:'',colour:'',lastUpdated:new Date().toISOString().split('T')[0],send:'YES'});
+  saveMod('builderSummary',builderSummary);renderBuilderSummary();
+}
+function submitBSRequest(){
+  const builder=document.getElementById('bs-new-builder').value;
+  const address=document.getElementById('bs-new-address').value;
+  const suburb=document.getElementById('bs-new-suburb').value;
+  const reqDate=document.getElementById('bs-new-date').value;
+  if(!builder||!address){alert('Builder and address are required.');return;}
+  builderSummary.push({builder,po:'',address,suburb,status:'AWAITING BOOKING',
+    builderReqDate:reqDate,slBookedDate:'',builderNewDate:'',builderNotes:'New request from builder',
+    flag:'AWAITING BOOKING',profile:'',colour:'',lastUpdated:new Date().toISOString().split('T')[0],send:'YES'});
+  saveMod('builderSummary',builderSummary);
+  document.getElementById('bs-new-address').value='';
+  document.getElementById('bs-new-suburb').value='';
+  document.getElementById('bs-new-date').value='';
+  alert('Request submitted — Steel-Line admin will confirm a date.');
+  renderBuilderSummary();
+}
+function deleteBSRow(idx){if(!confirm('Delete?'))return;builderSummary.splice(idx,1);saveMod('builderSummary',builderSummary);renderBuilderSummary();}
+
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT / IMPORT — shared JSON file via OneDrive/SharePoint
+// ═══════════════════════════════════════════════════════════════
+
+function getAllData() {
+  return {
+    _meta: {
+      exportedAt:   new Date().toISOString(),
+      exportedBy:   cfg_live.branchName || 'Steel-Line',
+      version:      '1.0',
+    },
+    config:          cfg_live,
+    jobs:            jobs,
+    measureJobs:     measureJobs,
+    rtoJobs:         rtoJobs,
+    archiveJobs:     archiveJobs,
+    handDeliver:     handDeliver,
+    handOnsite:      handOnsite,
+    handRecords:     handRecords,
+    repRun:          repRun,
+    supervisors:     supervisors,
+    stockDoors:      stockDoors,
+    builderSummary:  builderSummary,
+  };
+}
+
+function exportData() {
+  const data     = getAllData();
+  const json     = JSON.stringify(data, null, 2);
+  const blob     = new Blob([json], { type: 'application/json' });
+  const url      = URL.createObjectURL(blob);
+  const now      = new Date();
+  const dateStr  = now.toISOString().slice(0,10);
+  const timeStr  = now.toTimeString().slice(0,5).replace(':','');
+  const branch   = (cfg_live.branchName || 'SteelLine').replace(/\s+/g,'-');
+  const filename = `${branch}-ScheduleData-${dateStr}-${timeStr}.json`;
+
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+
+  // Record last export time
+  localStorage.setItem('sl_last_export', new Date().toISOString());
+  updateSyncStatus();
+  showToast('✓ Exported — save this file to your shared SharePoint / OneDrive folder');
+}
+
+function importData() {
+  document.getElementById('import-file-input').click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data._meta) throw new Error('Not a valid Steel-Line data file');
+
+      const exportTime = new Date(data._meta.exportedAt);
+      const timeAgo    = formatTimeAgo(exportTime);
+      const branch     = data._meta.exportedBy || 'Unknown';
+
+      if (!confirm(
+        `Import data from: ${branch}\n` +
+        `Exported: ${exportTime.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long'})} ` +
+        `at ${exportTime.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})} (${timeAgo})\n\n` +
+        `This will REPLACE all current data in your browser.\n` +
+        `Make sure you have exported YOUR changes first if needed.\n\nContinue?`
+      )) return;
+
+      // Load all data
+      if (data.config)         { saveConfig(data.config); }
+      if (data.jobs)           { jobs = data.jobs; persistJobs(); }
+      if (data.measureJobs)    { measureJobs = data.measureJobs; saveMod('measure', measureJobs); }
+      if (data.rtoJobs)        { rtoJobs = data.rtoJobs; saveMod('rto', rtoJobs); }
+      if (data.archiveJobs)    { archiveJobs = data.archiveJobs; saveMod('archive', archiveJobs); }
+      if (data.handDeliver)    { handDeliver = data.handDeliver; saveMod('handDeliver', handDeliver); }
+      if (data.handOnsite)     { handOnsite = data.handOnsite; saveMod('handOnsite', handOnsite); }
+      if (data.handRecords)    { handRecords = data.handRecords; saveMod('handRecords', handRecords); }
+      if (data.repRun)         { repRun = data.repRun; saveMod('repRun', repRun); }
+      if (data.supervisors)    { supervisors = data.supervisors; saveMod('supervisors', supervisors); }
+      if (data.stockDoors)     { stockDoors = data.stockDoors; saveMod('stock', stockDoors); }
+      if (data.builderSummary) { builderSummary = data.builderSummary; saveMod('builderSummary', builderSummary); }
+
+      nextId = Math.max(0, ...jobs.map(j => j.id)) + 1;
+
+      localStorage.setItem('sl_last_import', new Date().toISOString());
+      localStorage.setItem('sl_last_import_from', branch);
+      if (typeof rebuildLookups === 'function') rebuildLookups();
+      if (typeof render === 'function') render();
+      const msg = `✓ Imported ${(data.jobs||[]).length} jobs, ${(data.measureJobs||[]).length} measure records`;
+      if (typeof showToast === 'function') showToast(msg + ' — syncing to SharePoint...');
+      else alert(msg);
+      if (typeof spConnected !== 'undefined' && spConnected) {
+        setTimeout(() => { if (typeof syncAllToSP === 'function') syncAllToSP(); }, 500);
+      } else {
+        if (typeof updateSyncStatus === 'function') updateSyncStatus();
+      }
+    } catch(err) {
+      alert('Import failed: ' + err.message + '\n\nMake sure you selected a Steel-Line data export file (.json)');
+    }
+  };
+  reader.readAsText(file);
+  // Reset so same file can be re-imported
+  event.target.value = '';
+}
+
+function formatTimeAgo(date) {
+  const secs = Math.floor((new Date() - date) / 1000);
+  if (secs < 60)   return 'just now';
+  if (secs < 3600) return `${Math.floor(secs/60)} min ago`;
+  if (secs < 86400)return `${Math.floor(secs/3600)} hr ago`;
+  return `${Math.floor(secs/86400)} days ago`;
+}
+
+function updateSyncStatus() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const lastExport = localStorage.getItem('sl_last_export');
+  const lastImport = localStorage.getItem('sl_last_import');
+  const importFrom = localStorage.getItem('sl_last_import_from');
+
+  let parts = [];
+  if (lastImport) {
+    const d = new Date(lastImport);
+    parts.push(`Last import: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}${importFrom?' from '+importFrom:''}`);
+  }
+  if (lastExport) {
+    const d = new Date(lastExport);
+    parts.push(`Last export: ${d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})} ${d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
+  }
+  if (!parts.length) {
+    el.textContent = 'No sync yet — click Export to save data to your shared folder';
+    el.style.color = '#64748b';
+  } else {
+    el.textContent = parts.join('   •   ');
+    el.style.color = '#94a3b8';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('save-toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3500);
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// SHAREPOINT REST API DATA LAYER
+// Uses existing browser session — no OAuth, no admin, no Power Automate
+// The HTML file must be hosted on SharePoint for this to work
+// Site: https://slgd.sharepoint.com/sites/SLGD1141-Scheduling
+// ═══════════════════════════════════════════════════════════════
+
+const SP_SITE = 'https://slgd.sharepoint.com/sites/SLGD1141-Scheduling';
+const SP_API  = `${SP_SITE}/_api/web/lists`;
+
+// Map from local data key → SharePoint List name
+const LIST_MAP = {
+  jobs:          'SL_InstallJobs',
+  measure:       'SL_MeasureJobs',
+  handDeliver:   'SL_HandsetDeliver',
+  handOnsite:    'SL_HandsetOnsite',
+  builderSummary:'SL_BuilderSummary',
+  archive:       'SL_Archive',
+};
+
+// ── Request Digest (CSRF token required for writes) ───────────
+let _digest = null;
+let _digestExpiry = 0;
+
+async function getDigest() {
+  if (_digest && Date.now() < _digestExpiry) return _digest;
+  try {
+    const resp = await fetch(`${SP_SITE}/_api/contextinfo`, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json;odata=verbose' },
+      credentials: 'include',
+    });
+    if (!resp.ok) throw new Error(`Digest fetch failed: ${resp.status}`);
+    const data = await resp.json();
+    _digest = data.d.GetContextWebInformation.FormDigestValue;
+    _digestExpiry = Date.now() + (data.d.GetContextWebInformation.FormDigestTimeoutSeconds - 30) * 1000;
+    return _digest;
+  } catch(e) {
+    console.error('Digest error:', e);
+    return null;
+  }
+}
+
+// ── Core SP REST helpers ──────────────────────────────────────
+
+async function spGet(listName, filter='', top=5000) {
+  let url = `${SP_API}/GetByTitle('${listName}')/items?$top=${top}`;
+  if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
+  const resp = await fetch(url, {
+    headers: { 'Accept': 'application/json;odata=verbose' },
+    credentials: 'include',
+  });
+  if (!resp.ok) throw new Error(`GET ${listName} failed: ${resp.status}`);
+  const data = await resp.json();
+  return data.d.results;
+}
+
+async function spCreate(listName, fields) {
+  const digest = await getDigest();
+  const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
+  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json;odata=verbose',
+      'Content-Type': 'application/json;odata=verbose',
+      'X-RequestDigest': digest,
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`CREATE ${listName} failed: ${resp.status} ${err}`);
+  }
+  return await resp.json();
+}
+
+async function spUpdate(listName, spId, fields) {
+  const digest = await getDigest();
+  const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
+  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json;odata=verbose',
+      'Content-Type': 'application/json;odata=verbose',
+      'X-RequestDigest': digest,
+      'X-HTTP-Method': 'MERGE',
+      'IF-MATCH': '*',
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok && resp.status !== 204) throw new Error(`UPDATE ${listName}(${spId}) failed: ${resp.status}`);
+}
+
+async function spDelete(listName, spId) {
+  const digest = await getDigest();
+  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json;odata=verbose',
+      'X-RequestDigest': digest,
+      'X-HTTP-Method': 'DELETE',
+      'IF-MATCH': '*',
+    },
+    credentials: 'include',
+  });
+  if (!resp.ok && resp.status !== 204) throw new Error(`DELETE ${listName}(${spId}) failed: ${resp.status}`);
+}
+
+// Cache for list item types
+const _typeCache = {};
+async function getListItemType(listName) {
+  if (_typeCache[listName]) return _typeCache[listName];
+  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')?$select=ListItemEntityTypeFullName`, {
+    headers: { 'Accept': 'application/json;odata=verbose' },
+    credentials: 'include',
+  });
+  const data = await resp.json();
+  _typeCache[listName] = data.d.ListItemEntityTypeFullName;
+  return _typeCache[listName];
+}
+
+// ── Field mapping: app fields → SharePoint column names ───────
+
+const FIELD_MAP = {
+  jobs: {
+    toSP: r => ({
+      slJobId:       r.id        || 0,
+      slMeasureJobId:r.jobId     || '',
+      slDate:        r.date      || null,
+      slFitter:      r.fitter    || '',
+      slCustomer:    r.customer  || '',
+      slAddress:     r.address   || '',
+      slSuburb:      r.suburb    || '',
+      slDoors:       r.doors     || '',
+      slSage:        r.sage      || '',
+      slStatus:      r.status    || '',
+      slDoorType:    r.doorType  || '',
+      slEffort:      Number(r.effort) || 0,
+      slForm15:      r.form15    || 'NO',
+      slRunSheet:    r.runSheet  || 'NO',
+      slBuilderNotes:  r.builderNotes  || '',
+      slInternalNotes: r.internalNotes || '',
+      slContact:     r.contact   || '',
+    }),
+    fromSP: r => ({
+      _spId:        r.ID,
+      id:           r.slJobId   || r.ID,
+      jobId:        r.slMeasureJobId || '',
+      date:         r.slDate    ? r.slDate.split('T')[0] : '',
+      fitter:       r.slFitter  || '',
+      customer:     r.slCustomer|| '',
+      address:      r.slAddress || '',
+      suburb:       r.slSuburb  || '',
+      doors:        r.slDoors   || '',
+      sage:         r.slSage    || '',
+      status:       r.slStatus  || 'REQUESTED',
+      doorType:     r.slDoorType|| '',
+      effort:       r.slEffort  || 2,
+      form15:       r.slForm15  || 'NO',
+      runSheet:     r.slRunSheet|| 'NO',
+      builderNotes: r.slBuilderNotes  || '',
+      internalNotes:r.slInternalNotes || '',
+      contact:      r.slContact || '',
+    }),
+  },
+  measure: {
+    toSP: r => ({
+      slJobId:       r.jobId        || '',
+      slPO:          r.po           || '',
+      slCustomer:    r.customer     || '',
+      slAddress:     r.address      || '',
+      slSuburb:      r.suburb       || '',
+      slProfile:     r.profile      || '',
+      slColour:      r.colour       || '',
+      slHeight:      String(r.height|| ''),
+      slWidth:       String(r.width || ''),
+      slLHR:         r.lhr          || '',
+      slMeasuredDate:r.measuredDate || null,
+      slStatus:      r.status       || 'READY TO MEASURE',
+      slQuote:       r.quote        || '',
+      slNotes:       r.notes        || '',
+      slAttachmentUrl: r.attachmentUrl || '',
+    }),
+    fromSP: r => ({
+      _spId:         r.ID,
+      jobId:         r.slJobId       || '',
+      po:            r.slPO          || '',
+      customer:      r.slCustomer    || '',
+      address:       r.slAddress     || '',
+      suburb:        r.slSuburb      || '',
+      profile:       r.slProfile     || '',
+      colour:        r.slColour      || '',
+      height:        r.slHeight      || '',
+      width:         r.slWidth       || '',
+      lhr:           r.slLHR         || '',
+      measuredDate:  r.slMeasuredDate? r.slMeasuredDate.split('T')[0] : '',
+      status:        r.slStatus      || 'READY TO MEASURE',
+      quote:         r.slQuote       || '',
+      notes:         r.slNotes       || '',
+      attachmentUrl: r.slAttachmentUrl|| '',
+    }),
+  },
+  handDeliver: {
+    toSP: r => ({
+      slDateCompleted: r.dateCompleted || null,
+      slBuilder:       r.builder       || '',
+      slAddress:       r.address       || '',
+      slHandsets:      String(r.handsets || ''),
+      slKeys:          String(r.keys    || ''),
+      slBasePlate:     String(r.basePlate|| ''),
+      slManual:        String(r.manual  || ''),
+      slPowerMesh:     String(r.powerMesh|| ''),
+      slWallButton:    String(r.wallButton|| ''),
+      slDateCollected: r.dateCollected || null,
+      slCollectedBy:   r.collectedBy   || '',
+      slSignature:     r.signature     || '',
+    }),
+    fromSP: r => ({
+      _spId:         r.ID,
+      dateCompleted: r.slDateCompleted? r.slDateCompleted.split('T')[0] : '',
+      builder:       r.slBuilder      || '',
+      address:       r.slAddress      || '',
+      handsets:      r.slHandsets     || '',
+      keys:          r.slKeys         || '',
+      basePlate:     r.slBasePlate    || '',
+      manual:        r.slManual       || '',
+      powerMesh:     r.slPowerMesh    || '',
+      wallButton:    r.slWallButton   || '',
+      dateCollected: r.slDateCollected? r.slDateCollected.split('T')[0] : '',
+      collectedBy:   r.slCollectedBy  || '',
+      signature:     r.slSignature    || '',
+    }),
+  },
+  handOnsite: {
+    toSP: r => ({
+      slDate:      r.date      || null,
+      slBuilder:   r.builder   || '',
+      slAddress:   r.address   || '',
+      slHandsets:  String(r.handsets || ''),
+      slKeys:      String(r.keys    || ''),
+      slManual:    String(r.manual  || ''),
+      slWallButton:String(r.wallButton|| ''),
+      slWhereLeft: r.whereLeft || '',
+      slPhotos:    r.photos    || '',
+      slNotes:     r.notes     || '',
+    }),
+    fromSP: r => ({
+      _spId:     r.ID,
+      date:      r.slDate     ? r.slDate.split('T')[0] : '',
+      builder:   r.slBuilder  || '',
+      address:   r.slAddress  || '',
+      handsets:  r.slHandsets || '',
+      keys:      r.slKeys     || '',
+      manual:    r.slManual   || '',
+      wallButton:r.slWallButton|| '',
+      whereLeft: r.slWhereLeft|| '',
+      photos:    r.slPhotos   || '',
+      notes:     r.slNotes    || '',
+    }),
+  },
+  builderSummary: {
+    toSP: r => ({
+      slBuilder:       r.builder       || '',
+      slPO:            r.po            || '',
+      slAddress:       r.address       || '',
+      slSuburb:        r.suburb        || '',
+      slStatus:        r.status        || '',
+      slBuilderReqDate:r.builderReqDate|| null,
+      slSLBookedDate:  r.slBookedDate  || null,
+      slBuilderNewDate:r.builderNewDate|| null,
+      slBuilderNotes:  r.builderNotes  || '',
+      slFlag:          r.flag          || '',
+      slProfile:       r.profile       || '',
+      slColour:        r.colour        || '',
+      slLastUpdated:   r.lastUpdated   || null,
+      slSend:          r.send          || 'YES',
+    }),
+    fromSP: r => ({
+      _spId:        r.ID,
+      builder:      r.slBuilder       || '',
+      po:           r.slPO            || '',
+      address:      r.slAddress       || '',
+      suburb:       r.slSuburb        || '',
+      status:       r.slStatus        || '',
+      builderReqDate:r.slBuilderReqDate? r.slBuilderReqDate.split('T')[0]:'',
+      slBookedDate: r.slSLBookedDate  ? r.slSLBookedDate.split('T')[0]  :'',
+      builderNewDate:r.slBuilderNewDate? r.slBuilderNewDate.split('T')[0]:'',
+      builderNotes: r.slBuilderNotes  || '',
+      flag:         r.slFlag          || '',
+      profile:      r.slProfile       || '',
+      colour:       r.slColour        || '',
+      lastUpdated:  r.slLastUpdated   ? r.slLastUpdated.split('T')[0]   :'',
+      send:         r.slSend          || 'YES',
+    }),
+  },
+  archive: {
+    toSP: r => ({
+      slSage:       r.sage       || '',
+      slPO:         r.po         || '',
+      slCustomer:   r.customer   || '',
+      slAddress:    r.address    || '',
+      slSuburb:     r.suburb     || '',
+      slProfile:    r.profile    || '',
+      slColour:     r.colour     || '',
+      slDoorType:   r.doorType   || '',
+      slActH:       String(r.actH|| ''),
+      slActW:       String(r.actW|| ''),
+      slLHR:        r.lhr        || '',
+      slExtRail:    r.extRail    || 'NO',
+      slInstallDate:r.installDate|| null,
+      slEffort:     Number(r.effort)||0,
+      slNotes:      r.notes      || '',
+    }),
+    fromSP: r => ({
+      _spId:      r.ID,
+      sage:       r.slSage       || '',
+      po:         r.slPO         || '',
+      customer:   r.slCustomer   || '',
+      address:    r.slAddress    || '',
+      suburb:     r.slSuburb     || '',
+      profile:    r.slProfile    || '',
+      colour:     r.slColour     || '',
+      doorType:   r.slDoorType   || '',
+      actH:       r.slActH       || '',
+      actW:       r.slActW       || '',
+      lhr:        r.slLHR        || '',
+      extRail:    r.slExtRail    || 'NO',
+      installDate:r.slInstallDate? r.slInstallDate.split('T')[0]:'',
+      effort:     r.slEffort     || 0,
+      notes:      r.slNotes      || '',
+    }),
+  },
+};
+
+// ── Connection state ──────────────────────────────────────────
+let spConnected = false;
+let spConnecting = false;
+
+async function checkSPConnection() {
+  try {
+    const resp = await fetch(`${SP_SITE}/_api/web/title`, {
+      headers: { 'Accept': 'application/json;odata=verbose' },
+      credentials: 'include',
+    });
+    return resp.ok;
+  } catch(e) {
+    return false;
+  }
+}
+
+// ── Load all data from SharePoint ────────────────────────────
+async function loadAllFromSP() {
+  spConnecting = true;
+  updateSyncStatus('⟳ Connecting to SharePoint Lists...');
+
+  const ok = await checkSPConnection();
+  if (!ok) {
+    spConnected = false;
+    spConnecting = false;
+    updateSyncStatus('⚠ Not connected to SharePoint — using local data. Open this file from your SharePoint site.');
+    return;
+  }
+
+  spConnected = true;
+  updateSyncStatus('⟳ Loading data from SharePoint...');
+
+  try {
+    const results = await Promise.allSettled([
+      spGet(LIST_MAP.jobs).then(rows => rows.map(FIELD_MAP.jobs.fromSP)),
+      spGet(LIST_MAP.measure).then(rows => rows.map(FIELD_MAP.measure.fromSP)),
+      spGet(LIST_MAP.handDeliver).then(rows => rows.map(FIELD_MAP.handDeliver.fromSP)),
+      spGet(LIST_MAP.handOnsite).then(rows => rows.map(FIELD_MAP.handOnsite.fromSP)),
+      spGet(LIST_MAP.builderSummary).then(rows => rows.map(FIELD_MAP.builderSummary.fromSP)),
+      spGet(LIST_MAP.archive).then(rows => rows.map(FIELD_MAP.archive.fromSP)),
+    ]);
+
+    const [j, m, hd, ho, bs, ar] = results;
+
+    if (j.status  === 'fulfilled' && j.value.length  >= 0) { jobs = j.value;   saveMod('jobs', jobs); nextId = Math.max(0,...jobs.map(x=>x.id||0))+1; }
+    if (m.status  === 'fulfilled' && m.value.length  >= 0) { measureJobs    = m.value;  saveMod('measure',       measureJobs);    }
+    if (hd.status === 'fulfilled' && hd.value.length >= 0) { handDeliver    = hd.value; saveMod('handDeliver',   handDeliver);    }
+    if (ho.status === 'fulfilled' && ho.value.length >= 0) { handOnsite     = ho.value; saveMod('handOnsite',    handOnsite);     }
+    if (bs.status === 'fulfilled' && bs.value.length >= 0) { builderSummary = bs.value; saveMod('builderSummary',builderSummary); }
+    if (ar.status === 'fulfilled' && ar.value.length >= 0) { archiveJobs    = ar.value; saveMod('archive',       archiveJobs);    }
+
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) {
+      updateSyncStatus(`⚠ Connected — ${6-failed}/6 lists loaded. Some lists may not exist yet.`);
+    } else {
+      updateSyncStatus(`✓ Connected to SharePoint — live data — ${jobs.length} jobs`);
+    }
+    spConnecting = false;
+    render();
+  } catch(e) {
+    console.error('SP load error:', e);
+    spConnecting = false;
+    updateSyncStatus('⚠ Error loading from SharePoint — using local data');
+  }
+}
+
+// ── Save a single record to SharePoint ───────────────────────
+// Called after any data mutation — upserts by _spId or creates new
+
+async function spSaveRecord(dataKey, record) {
+  if (!spConnected) return;
+  const map = FIELD_MAP[dataKey];
+  const listName = LIST_MAP[dataKey];
+  if (!map || !listName) return;
+
+  try {
+    const fields = map.toSP(record);
+    if (record._spId) {
+      await spUpdate(listName, record._spId, fields);
+    } else {
+      const created = await spCreate(listName, fields);
+      record._spId = created.d.ID;
+    }
+    updateSyncStatus(`✓ Saved to SharePoint — ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
+  } catch(e) {
+    console.error(`SP save error [${dataKey}]:`, e);
+    updateSyncStatus(`⚠ Save failed — check SharePoint connection`);
+  }
+}
+
+async function spDeleteRecord(dataKey, record) {
+  if (!spConnected || !record._spId) return;
+  const listName = LIST_MAP[dataKey];
+  try {
+    await spDelete(listName, record._spId);
+  } catch(e) {
+    console.error(`SP delete error [${dataKey}]:`, e);
+  }
+}
+
+// persistJobs — saves to localStorage (SP saves happen per-record via spSaveRecord)
+// No override needed — original persistJobs() is used directly
+
+// ── saveMod override — also syncs full list to SP ────────────
+// For bulk operations (import), sync everything
+async function syncAllToSP() {
+  if (!spConnected) return;
+  updateSyncStatus('⟳ Syncing all data to SharePoint...');
+  try {
+    // For each dataset, get current SP items and reconcile
+    const datasets = [
+      { key:'jobs',          data:jobs,          map:FIELD_MAP.jobs },
+      { key:'measure',       data:measureJobs,   map:FIELD_MAP.measure },
+      { key:'handDeliver',   data:handDeliver,   map:FIELD_MAP.handDeliver },
+      { key:'handOnsite',    data:handOnsite,    map:FIELD_MAP.handOnsite },
+      { key:'builderSummary',data:builderSummary,map:FIELD_MAP.builderSummary },
+      { key:'archive',       data:archiveJobs,   map:FIELD_MAP.archive },
+    ];
+
+    for (const ds of datasets) {
+      const listName = LIST_MAP[ds.key];
+      const spItems  = await spGet(listName);
+
+      // Delete all existing SP items
+      for (const item of spItems) {
+        await spDelete(listName, item.ID);
+      }
+      // Create fresh from local data
+      for (const record of ds.data) {
+        const fields = ds.map.toSP(record);
+        const created = await spCreate(listName, fields);
+        record._spId = created.d.ID;
+      }
+    }
+    updateSyncStatus(`✓ All data synced to SharePoint — ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
+  } catch(e) {
+    console.error('Sync error:', e);
+    updateSyncStatus('⚠ Sync failed — check console for details');
+  }
+}
+
+function updateSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.style.color = msg.startsWith('✓') ? '#4ade80'
+                   : msg.startsWith('⚠') ? '#fbbf24'
+                   : msg.startsWith('⟳') ? '#93c3ea'
+                   : '#94a3b8';
+    return;
+  }
+  el.textContent = spConnected
+    ? '✓ Connected to SharePoint Lists — live data'
+    : '⚠ Not connected — open this file from your SharePoint site for live data';
+  el.style.color = spConnected ? '#4ade80' : '#fbbf24';
+}
+
+// ── Config UI — show SP connection status ─────────────────────
+function renderListsSetup() {
+  return `
+  <div class="config-section" style="border:2px solid ${spConnected?'#22c55e':'#f59e0b'}">
+    <div class="config-section-header" style="background:${spConnected?'#dcfce7':'#fffbeb'}">
+      <div>
+        <div class="config-section-title" style="color:${spConnected?'#166534':'#92400e'}">
+          ${spConnected?'✓ Connected to SharePoint Lists':'⚠ SharePoint Lists — Not Connected'}
+        </div>
+        <div class="config-section-desc">
+          ${spConnected
+            ? `Reading and writing live data from: <strong>${SP_SITE}</strong>`
+            : `This app must be opened from your SharePoint site to connect automatically. Upload the HTML file to your Install Scheduling channel Documents tab and open it from there.`
+          }
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadAllFromSP().then(()=>render())"
+          style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">
+          ⟳ Reconnect
+        </button>
+        ${spConnected?`<button onclick="if(confirm('Sync all local data to SharePoint? This overwrites SharePoint with your current local data.'))syncAllToSP()"
+          style="background:#166534;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">
+          ↑ Force Sync to SP
+        </button>`:''}
+      </div>
+    </div>
+    <div class="config-body">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;font-size:11px;color:#1e40af">
+        <strong>SharePoint site:</strong> <code style="background:#dbeafe;padding:1px 6px;border-radius:3px;font-size:10px">${SP_SITE}</code><br><br>
+        <strong>Required Lists (must exist on this site):</strong>
+        SL_InstallJobs, SL_MeasureJobs, SL_HandsetDeliver, SL_HandsetOnsite, SL_BuilderSummary, SL_Archive<br><br>
+        <strong>How to connect:</strong> Upload this HTML file to the Install Scheduling channel in Teams →
+        open it from SharePoint/Teams (not from your desktop) → connection is automatic.
+      </div>
+      ${spConnected?`
+      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${Object.entries(LIST_MAP).map(([key,list])=>`
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 10px;font-size:11px">
+            <span style="font-weight:700;color:#166534">✓ ${list}</span>
+          </div>`).join('')}
+      </div>`:''}
+    </div>
+  </div>`;
+}
+
+
+
+// ── SharePoint Attachments ─────────────────────────────────────
+function openSPAttachments(spId, listName) {
+  // Opens the SharePoint item's attachments page in a new tab
+  const url = `${SP_SITE}/Lists/${listName}/DispForm.aspx?ID=${spId}`;
+  window.open(url, '_blank');
+}
+
+function getSPAttachmentUrl(spId, listName) {
+  // Returns direct URL to the SP list item for linking
+  return `${SP_SITE}/Lists/${listName}/DispForm.aspx?ID=${spId}`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION & RENDER DISPATCHER
+// ═══════════════════════════════════════════════════════════════
+function setView(v) {
+  currentView = v;
+  ["diary","dashboard","config","measure","rto","archive","handdeliver","handonsite","handrecords",
+   "reprun","certifier","buildersummary","directory","stock"]
+    .forEach(n => { const el = document.getElementById('btn-'+n); if (el) el.classList.toggle("active", n===v); });
+  render();
+}
+
+function prevWeek() {
+  const d = new Date(currentWeekStart + "T00:00:00");
+  d.setDate(d.getDate() - 7);
+  currentWeekStart = d.toISOString().split("T")[0];
+  render();
+}
+
+function nextWeek() {
+  const d = new Date(currentWeekStart + "T00:00:00");
+  d.setDate(d.getDate() + 7);
+  currentWeekStart = d.toISOString().split("T")[0];
+  render();
+}
+
+function goToday() {
+  currentWeekStart = getMondayOf(new Date().toISOString().split("T")[0]);
+  render();
+}
+
+function render() {
+  const jc = document.getElementById("job-count");
+  if (jc) jc.textContent = `${jobs.length} jobs`;
+  if      (currentView === "diary")          renderDiary();
+  else if (currentView === "dashboard")      renderDashboard();
+  else if (currentView === "config")         renderConfig();
+  else if (currentView === "measure")        renderMeasure();
+  else if (currentView === "rto")            renderRTO();
+  else if (currentView === "archive")        renderArchive();
+  else if (currentView === "handdeliver")    renderHandDeliver();
+  else if (currentView === "handonsite")     renderHandOnsite();
+  else if (currentView === "handrecords")    renderHandRecords();
+  else if (currentView === "reprun")         renderRepRun();
+  else if (currentView === "certifier")      renderCertifier();
+  else if (currentView === "buildersummary") renderBuilderSummary();
+  else if (currentView === "directory")      renderDirectory();
+  else if (currentView === "stock")          renderStock();
+  renderLegend();
+}
+
+function renderLegend() {
+  const el = document.getElementById("legend");
+  if (!el) return;
+  if (currentView !== "diary") { el.innerHTML = ""; return; }
+  el.innerHTML = `<span class="legend-label">STATUS:</span>` +
+    STATUSES.map(s => `<span class="status-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.val}</span>`).join("") +
+    `<span style="font-size:10px;color:#9ca3af;margin-left:8px">Click any status badge on a job card to cycle through statuses instantly</span>`;
+}
+
+// INIT
+render();
+// Connect to SharePoint Lists using existing browser session
+loadAllFromSP();
+</script>
+</body>
+</html>
