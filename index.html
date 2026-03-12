@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- v20260312-1 -->
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Steel-Line Install Scheduler</title>
@@ -1068,152 +1069,15 @@ function resetConfig() {
 }
 
 
-function cycleMSStatus(idx) {
-  const r = measureJobs[idx];
-  const cur = MS_STATUSES.indexOf(r.status);
-  r.status = MS_STATUSES[(cur+1) % MS_STATUSES.length];
-  saveMod('measure', measureJobs);
-  renderMeasure();
-}
 
-function openMSModal(idx) {
-  msModalIdx = idx;
-  const d = idx !== null ? measureJobs[idx] : {};
-  document.getElementById('ms-modal-title').textContent = idx !== null ? `Edit — ${d.customer||''}` : 'Add Measure Job';
 
-  const subOpts = cfg_live.suburbZones.slice().sort((a,b)=>a.suburb.localeCompare(b.suburb))
-    .map(s=>`<option value="${s.suburb}"${s.suburb===d.suburb?' selected':''}>${s.suburb}</option>`).join('');
-  const statOpts = MS_STATUSES.map(s=>`<option${s===d.status?' selected':''}>${s}</option>`).join('');
-  const custOpts = cfg_live.builders.map(b=>`<option${b===d.customer?' selected':''}>${b}</option>`).join('');
 
-  document.getElementById('ms-form-body').innerHTML = `
-    <div class="form-field"><label>Customer / Builder</label>
-      <select id="msf-customer">${custOpts}</select></div>
-    <div class="form-field"><label>PO Number</label>
-      <input id="msf-po" value="${escH(d.po||'')}"></div>
-    <div class="form-field full"><label>Site Address</label>
-      <input id="msf-address" value="${escH(d.address||'')}"></div>
-    <div class="form-field"><label>Suburb</label>
-      <select id="msf-suburb" onchange="updateMSZonePreview()">${subOpts}</select></div>
-    <div class="form-field"><label>Status</label>
-      <select id="msf-status">${statOpts}</select></div>
-    <div class="form-field"><label>Profile (door type)</label>
-      <input id="msf-profile" value="${escH(d.profile||'')}"></div>
-    <div class="form-field"><label>Colour</label>
-      <input id="msf-colour" value="${escH(d.colour||'')}"></div>
-    <div class="form-field"><label>Required Height (mm)</label>
-      <input id="msf-height" type="number" value="${d.height||''}"></div>
-    <div class="form-field"><label>Required Width (mm)</label>
-      <input id="msf-width" type="number" value="${d.width||''}"></div>
-    <div class="form-field"><label>LH / Headroom / RH</label>
-      <input id="msf-lhr" value="${escH(d.lhr||'')}"></div>
-    <div class="form-field"><label>Measured Date</label>
-      <input id="msf-measDate" type="date" value="${d.measuredDate||''}"></div>
-    <div class="form-field"><label>Quote / Reference</label>
-      <input id="msf-quote" value="${escH(d.quote||'')}"></div>
-    <div class="form-field full"><label>Photo Links</label>
-      <input id="msf-photo" value="${escH(d.photo||'')}"></div>
-    <div class="form-field full"><label>Notes</label>
-      <textarea id="msf-notes" rows="2">${escH(d.notes||'')}</textarea></div>`;
 
-  updateMSZonePreview();
-  document.getElementById('ms-modal').style.display = 'flex';
-}
 
-function updateMSZonePreview() {
-  const suburb = document.getElementById('msf-suburb')?.value || '';
-  const zone = SUBURB_ZONE_MAP[suburb.toUpperCase()] || 'UNKNOWN';
-  const el = document.getElementById('ms-zone-preview');
-  if (!el) return;
-  if (suburb) {
-    const zc = ZONE_SECTION_COLORS[zone] || ZONE_SECTION_COLORS['UNKNOWN'];
-    el.style.display = 'block';
-    el.style.background = zc.bg;
-    el.style.border = `1px solid ${zc.c}40`;
-    el.style.borderRadius = '5px';
-    el.style.padding = '6px 10px';
-    el.style.fontSize = '11px';
-    el.innerHTML = `<strong>Zone detected:</strong> <span style="font-weight:800;color:${zc.c}">${zone}</span> — job will be placed in the <strong>${zone}</strong> section`;
-  } else {
-    el.style.display = 'none';
-  }
-}
 
-function saveMSRow() {
-  const customer = document.getElementById('msf-customer').value;
-  const address  = document.getElementById('msf-address').value;
-  if (!customer || !address) { alert('Customer and address are required.'); return; }
 
-  const row = {
-    po:          document.getElementById('msf-po').value,
-    customer,
-    address,
-    suburb:      document.getElementById('msf-suburb').value,
-    status:      document.getElementById('msf-status').value,
-    profile:     document.getElementById('msf-profile').value,
-    colour:      document.getElementById('msf-colour').value,
-    height:      document.getElementById('msf-height').value,
-    width:       document.getElementById('msf-width').value,
-    lhr:         document.getElementById('msf-lhr').value,
-    measuredDate:document.getElementById('msf-measDate').value,
-    quote:       document.getElementById('msf-quote').value,
-    photo:       document.getElementById('msf-photo').value,
-    notes:       document.getElementById('msf-notes').value,
-  };
 
-  if (msModalIdx !== null) {
-    measureJobs[msModalIdx] = row;
-  } else {
-    // Insert new job in correct position:
-    // sorted by zone section → suburb → street → lot number descending
-    function parseLotN(addr) {
-      const m = (addr||'').match(/^LOT\s+(\d+)/i);
-      return m ? parseInt(m[1]) : 0;
-    }
-    function parseStreetN(addr) {
-      return (addr||'').replace(/^LOT\s+\d+\s*(\(\d+\))?\s*/i,'').replace(/^\d+\s*(\/\d+)?\s*/,'').trim().toUpperCase();
-    }
 
-    const zone = SUBURB_ZONE_MAP[(row.suburb||'').toUpperCase()] || 'UNKNOWN';
-    const zoneIdx = ZONE_SECTION_ORDER.indexOf(zone);
-    const rowStreet = parseStreetN(row.address);
-    const rowLot    = parseLotN(row.address);
-
-    let insertIdx = measureJobs.length; // default: append
-    for (let i = 0; i < measureJobs.length; i++) {
-      const j = measureJobs[i];
-      const jZone    = SUBURB_ZONE_MAP[(j.suburb||'').toUpperCase()] || 'UNKNOWN';
-      const jZoneIdx = ZONE_SECTION_ORDER.indexOf(jZone);
-      // Is this job "after" the new job in sort order?
-      if (jZoneIdx > zoneIdx) { insertIdx = i; break; }
-      if (jZoneIdx === zoneIdx) {
-        const subCmp = (j.suburb||'').localeCompare(row.suburb||'');
-        if (subCmp > 0) { insertIdx = i; break; }
-        if (subCmp === 0) {
-          const jStreet = parseStreetN(j.address);
-          const streetCmp = jStreet.localeCompare(rowStreet);
-          if (streetCmp > 0) { insertIdx = i; break; }
-          if (streetCmp === 0) {
-            // Same street — insert descending by lot (higher lots first)
-            if (parseLotN(j.address) < rowLot) { insertIdx = i; break; }
-          }
-        }
-      }
-    }
-    measureJobs.splice(insertIdx, 0, row);
-  }
-
-  saveMod('measure', measureJobs);
-  document.getElementById('ms-modal').style.display = 'none';
-  renderMeasure();
-}
-
-function deleteMSRow(idx) {
-  if (!confirm(`Delete measure job for ${measureJobs[idx]?.customer}?`)) return;
-  measureJobs.splice(idx, 1);
-  saveMod('measure', measureJobs);
-  renderMeasure();
-}
 
 // ═══════════════════════════════════════════════════════════════
 // READY TO ORDER
@@ -1295,14 +1159,7 @@ function calcDoorH(dloH, doorType) {
   return String(h + (cfg.hAdj || 0));
 }
 
-function calcDoorW(dloW, doorType) {
-  const cfg = getDoorTypeConfig(doorType);
-  if (!cfg || !cfg.hasMeasurements) return '';
-  if (!dloW) return '';
-  const w = parseInt(String(dloW).replace(/[^0-9]/g,''));
-  if (isNaN(w)) return '';
-  return String(w + (cfg.wAdj || 0));
-}
+
 
 function checkLHRWarning(lhr, doorType) {
   if (!lhr) return null;
@@ -3921,58 +3778,7 @@ function renderFitterRunSheetButtons(weekStart) {
 
 
 
-// ── Auto-update Builder Summary when job is saved ────────────
-function autoUpdateBuilderSummary(job) {
-  if (!job) return;
-  if (!job.customer || !job.address) return;
 
-  // Find existing entry
-  const key = (job.customer.toUpperCase().trim() + '|' + job.address.toUpperCase().trim());
-  let entry = builderSummary.find(b =>
-    (b.builder.toUpperCase().trim() + '|' + b.address.toUpperCase().trim()) === key
-  );
-
-  // Get measure sheet data for this job
-  const measure = measureJobs.find(m =>
-    m.customer.toUpperCase().trim() === job.customer.toUpperCase().trim() &&
-    m.address.toUpperCase().trim()  === job.address.toUpperCase().trim()
-  );
-
-  if (entry) {
-    // Update existing
-    entry.status       = job.status;
-    entry.slBookedDate = job.date || entry.slBookedDate;
-    entry.lastUpdated  = new Date().toISOString().split('T')[0];
-    if (measure) {
-      entry.profile  = measure.profile  || entry.profile;
-      entry.colour   = measure.colour   || entry.colour;
-      entry.flag     = !measure.height || !measure.width ? 'MISSING MEASUREMENTS' : '';
-    }
-    spSaveRecord('builderSummary', entry);
-  } else {
-    // Create new entry
-    const newEntry = {
-      jobId:         job.jobId || '',
-      builder:       job.customer,
-      po:            measure?.po || '',
-      address:       job.address,
-      suburb:        job.suburb || '',
-      status:        job.status,
-      builderReqDate:'',
-      slBookedDate:  job.date || '',
-      builderNewDate:'',
-      builderNotes:  job.builderNotes || '',
-      flag:          measure && (!measure.height || !measure.width) ? 'MISSING MEASUREMENTS' : '',
-      profile:       measure?.profile  || '',
-      colour:        measure?.colour   || '',
-      lastUpdated:   new Date().toISOString().split('T')[0],
-      send:          'YES',
-    };
-    builderSummary.push(newEntry);
-    spSaveRecord('builderSummary', newEntry);
-  }
-  saveMod('builderSummary', builderSummary);
-}
 
 // ── Builder Summary filter — active + completed within 7 days ─
 function getBuilderSummaryDisplay() {
