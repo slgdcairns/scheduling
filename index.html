@@ -195,7 +195,7 @@
 <div id="sync-bar" style="background:#1e293b;border-bottom:2px solid #334155;padding:6px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap;">
   <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
     <span style="color:#94a3b8;font-weight:700;white-space:nowrap">💾 SYNC:</span>
-    <span id="sync-status" style="color:#64748b;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Loading...</span>
+    <span id="sync-status" style="color:#94a3b8;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Connecting to Supabase...</span>
   </div>
   <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
     <button onclick="importData()" style="background:#166534;color:#fff;border:none;border-radius:5px;padding:5px 14px;font-size:11px;font-weight:800;cursor:pointer">📂 Import from file</button>
@@ -2651,633 +2651,337 @@ function showToast(msg) {
 
 
 // ═══════════════════════════════════════════════════════════════
-// SHAREPOINT REST API DATA LAYER
-// Uses existing browser session — no OAuth, no admin, no Power Automate
-// The HTML file must be hosted on SharePoint for this to work
-// Site: https://slgd.sharepoint.com/sites/SLGD1141-Scheduling
+// SUPABASE DATA LAYER — Live multi-user database
+// Project: https://dmrbrcezogeoziafhzxj.supabase.co
 // ═══════════════════════════════════════════════════════════════
 
-const SP_SITE = 'https://slgd.sharepoint.com/sites/SLGD1141-Scheduling';
-const SP_API  = `${SP_SITE}/_api/web/lists`;
+const SB_URL = 'https://dmrbrcezogeoziafhzxj.supabase.co';
+const SB_KEY = 'sb_publishable_7rxEqG8jY5LEXIKlzZpw9g_nc2DpC8w';
 
-// Map from local data key → SharePoint List name
-const LIST_MAP = {
-  jobs:          'SL_InstallJobs',
-  measure:       'SL_MeasureJobs',
-  handDeliver:   'SL_HandsetDeliver',
-  handOnsite:    'SL_HandsetOnsite',
-  builderSummary:'SL_BuilderSummary',
-  archive:       'SL_Archive',
+const SB_HEADERS = {
+  'Content-Type':  'application/json',
+  'apikey':        SB_KEY,
+  'Authorization': 'Bearer ' + SB_KEY,
+  'Prefer':        'return=representation',
 };
 
-// ── Request Digest (CSRF token required for writes) ───────────
-let _digest = null;
-let _digestExpiry = 0;
+// ── Core Supabase REST helpers ────────────────────────────────
 
-async function getDigest() {
-  if (_digest && Date.now() < _digestExpiry) return _digest;
-  try {
-    const resp = await fetch(`${SP_SITE}/_api/contextinfo`, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json;odata=verbose' },
-      credentials: 'include',
-    });
-    if (!resp.ok) throw new Error(`Digest fetch failed: ${resp.status}`);
-    const data = await resp.json();
-    _digest = data.d.GetContextWebInformation.FormDigestValue;
-    _digestExpiry = Date.now() + (data.d.GetContextWebInformation.FormDigestTimeoutSeconds - 30) * 1000;
-    return _digest;
-  } catch(e) {
-    console.error('Digest error:', e);
-    return null;
-  }
-}
-
-// ── Core SP REST helpers ──────────────────────────────────────
-
-async function getAuthHeaders(extra={}) {
-  // No token auth — relies on browser session/cookies when hosted on SharePoint
-  // or will work unauthenticated for SP requests from same tenant
-  return { 'Accept': 'application/json;odata=verbose', ...extra };
-}
-
-async function spGet(listName, filter='', top=5000) {
-  let url = `${SP_API}/GetByTitle('${listName}')/items?$top=${top}`;
-  if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
-  const headers = await getAuthHeaders();
-  const resp = await fetch(url, { headers, credentials: 'include' });
-  if (!resp.ok) throw new Error(`GET ${listName} failed: ${resp.status}`);
-  const data = await resp.json();
-  return data.d.results;
-}
-
-async function spCreate(listName, fields) {
-  const digest = await getDigest();
-  const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
-  const headers = await getAuthHeaders({
-    'Content-Type': 'application/json;odata=verbose',
-    'X-RequestDigest': digest,
+async function sbGet(table) {
+  const resp = await fetch(`${SB_URL}/rest/v1/${table}?select=*&order=id`, {
+    headers: { ...SB_HEADERS, 'Prefer': 'return=representation' },
   });
-  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items`, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`CREATE ${listName} failed: ${resp.status} ${err}`);
-  }
+  if (!resp.ok) throw new Error(`GET ${table} failed: ${resp.status} ${await resp.text()}`);
   return await resp.json();
 }
 
-async function spUpdate(listName, spId, fields) {
-  const digest = await getDigest();
-  const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
-  const headers = await getAuthHeaders({
-    'Content-Type': 'application/json;odata=verbose',
-    'X-RequestDigest': digest,
-    'X-HTTP-Method': 'MERGE',
-    'IF-MATCH': '*',
+async function sbInsert(table, row) {
+  const resp = await fetch(`${SB_URL}/rest/v1/${table}`, {
+    method:  'POST',
+    headers: SB_HEADERS,
+    body:    JSON.stringify(row),
   });
-  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok && resp.status !== 204) throw new Error(`UPDATE ${listName}(${spId}) failed: ${resp.status}`);
+  if (!resp.ok) throw new Error(`INSERT ${table} failed: ${resp.status} ${await resp.text()}`);
+  const result = await resp.json();
+  return Array.isArray(result) ? result[0] : result;
 }
 
-async function spDelete(listName, spId) {
-  const digest = await getDigest();
-  const headers = await getAuthHeaders({
-    'X-RequestDigest': digest,
-    'X-HTTP-Method': 'DELETE',
-    'IF-MATCH': '*',
+async function sbUpdate(table, id, row) {
+  const resp = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method:  'PATCH',
+    headers: SB_HEADERS,
+    body:    JSON.stringify(row),
   });
-  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
-    method: 'POST',
-    headers,
-    credentials: 'include',
-  });
-  if (!resp.ok && resp.status !== 204) throw new Error(`DELETE ${listName}(${spId}) failed: ${resp.status}`);
+  if (!resp.ok) throw new Error(`UPDATE ${table}(${id}) failed: ${resp.status} ${await resp.text()}`);
+  const result = await resp.json();
+  return Array.isArray(result) ? result[0] : result;
 }
 
-// Cache for list item types
-const _typeCache = {};
-async function getListItemType(listName) {
-  if (_typeCache[listName]) return _typeCache[listName];
-  const resp = await fetch(`${SP_API}/GetByTitle('${listName}')?$select=ListItemEntityTypeFullName`, {
-    headers: { 'Accept': 'application/json;odata=verbose' },
-    credentials: 'include',
+async function sbDelete(table, id) {
+  const resp = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method:  'DELETE',
+    headers: SB_HEADERS,
   });
-  const data = await resp.json();
-  _typeCache[listName] = data.d.ListItemEntityTypeFullName;
-  return _typeCache[listName];
+  if (!resp.ok) throw new Error(`DELETE ${table}(${id}) failed: ${resp.status} ${await resp.text()}`);
 }
 
-// ── Field mapping: app fields → SharePoint column names ───────
+async function sbUpsert(table, rows, onConflict='id') {
+  if (!rows.length) return;
+  const resp = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+    method:  'POST',
+    headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=representation' },
+    body:    JSON.stringify(rows),
+  });
+  if (!resp.ok) throw new Error(`UPSERT ${table} failed: ${resp.status} ${await resp.text()}`);
+  return await resp.json();
+}
 
-const FIELD_MAP = {
+// ── Field mapping: app data ↔ Supabase columns ────────────────
+
+const SB_MAP = {
   jobs: {
-    toSP: r => ({
-      slJobId:       r.id        || 0,
-      slMeasureJobId:r.jobId     || '',
-      slDate:        r.date      || null,
-      slFitter:      r.fitter    || '',
-      slCustomer:    r.customer  || '',
-      slAddress:     r.address   || '',
-      slSuburb:      r.suburb    || '',
-      slDoors:       r.doors     || '',
-      slSage:        r.sage      || '',
-      slStatus:      r.status    || '',
-      slDoorType:    r.doorType  || '',
-      slEffort:      Number(r.effort) || 0,
-      slForm15:      r.form15    || 'NO',
-      slRunSheet:    r.runSheet  || 'NO',
-      slBuilderNotes:  r.builderNotes  || '',
-      slInternalNotes: r.internalNotes || '',
-      slContact:     r.contact   || '',
-    }),
-    fromSP: r => ({
-      _spId:        r.ID,
-      id:           r.slJobId   || r.ID,
-      jobId:        r.slMeasureJobId || '',
-      date:         r.slDate    ? r.slDate.split('T')[0] : '',
-      fitter:       r.slFitter  || '',
-      customer:     r.slCustomer|| '',
-      address:      r.slAddress || '',
-      suburb:       r.slSuburb  || '',
-      doors:        r.slDoors   || '',
-      sage:         r.slSage    || '',
-      status:       r.slStatus  || 'REQUESTED',
-      doorType:     r.slDoorType|| '',
-      effort:       r.slEffort  || 2,
-      form15:       r.slForm15  || 'NO',
-      runSheet:     r.slRunSheet|| 'NO',
-      builderNotes: r.slBuilderNotes  || '',
-      internalNotes:r.slInternalNotes || '',
-      contact:      r.slContact || '',
-    }),
+    toSB:   r => ({ id:r.id, job_id:r.jobId||'', date:r.date||null, fitter:r.fitter||'',
+      customer:r.customer||'', address:r.address||'', suburb:r.suburb||'',
+      doors:r.doors||'', sage:r.sage||'', status:r.status||'REQUESTED',
+      door_type:r.doorType||'', effort:Number(r.effort)||0,
+      form15:r.form15||'NO', run_sheet:r.runSheet||'NO',
+      builder_notes:r.builderNotes||'', internal_notes:r.internalNotes||'',
+      contact:r.contact||'', updated_at: new Date().toISOString() }),
+    fromSB: r => ({ id:r.id, jobId:r.job_id||'', date:r.date||'', fitter:r.fitter||'',
+      customer:r.customer||'', address:r.address||'', suburb:r.suburb||'',
+      doors:r.doors||'', sage:r.sage||'', status:r.status||'REQUESTED',
+      doorType:r.door_type||'', effort:r.effort||2,
+      form15:r.form15||'NO', runSheet:r.run_sheet||'NO',
+      builderNotes:r.builder_notes||'', internalNotes:r.internal_notes||'',
+      contact:r.contact||'', _sbId:r.id }),
   },
   measure: {
-    toSP: r => ({
-      slJobId:       r.jobId        || '',
-      slPO:          r.po           || '',
-      slCustomer:    r.customer     || '',
-      slAddress:     r.address      || '',
-      slSuburb:      r.suburb       || '',
-      slProfile:     r.profile      || '',
-      slColour:      r.colour       || '',
-      slHeight:      String(r.height|| ''),
-      slWidth:       String(r.width || ''),
-      slLHR:         r.lhr          || '',
-      slMeasuredDate:r.measuredDate || null,
-      slStatus:      r.status       || 'READY TO MEASURE',
-      slQuote:       r.quote        || '',
-      slNotes:       r.notes        || '',
-      slAttachmentUrl: r.attachmentUrl || '',
-    }),
-    fromSP: r => ({
-      _spId:         r.ID,
-      jobId:         r.slJobId       || '',
-      po:            r.slPO          || '',
-      customer:      r.slCustomer    || '',
-      address:       r.slAddress     || '',
-      suburb:        r.slSuburb      || '',
-      profile:       r.slProfile     || '',
-      colour:        r.slColour      || '',
-      height:        r.slHeight      || '',
-      width:         r.slWidth       || '',
-      lhr:           r.slLHR         || '',
-      measuredDate:  r.slMeasuredDate? r.slMeasuredDate.split('T')[0] : '',
-      status:        r.slStatus      || 'READY TO MEASURE',
-      quote:         r.slQuote       || '',
-      notes:         r.slNotes       || '',
-      attachmentUrl: r.slAttachmentUrl|| '',
-    }),
+    toSB:   r => ({ job_id:r.jobId||'', po:r.po||'', customer:r.customer||'',
+      address:r.address||'', suburb:r.suburb||'', profile:r.profile||'',
+      colour:r.colour||'', height:String(r.height||''), width:String(r.width||''),
+      lhr:r.lhr||'', measured_date:r.measuredDate||null, status:r.status||'READY TO MEASURE',
+      quote:r.quote||'', notes:r.notes||'', attachment_url:r.attachmentUrl||'',
+      updated_at: new Date().toISOString() }),
+    fromSB: r => ({ _sbId:r.id, jobId:r.job_id||'', po:r.po||'', customer:r.customer||'',
+      address:r.address||'', suburb:r.suburb||'', profile:r.profile||'',
+      colour:r.colour||'', height:r.height||'', width:r.width||'',
+      lhr:r.lhr||'', measuredDate:r.measured_date||'', status:r.status||'READY TO MEASURE',
+      quote:r.quote||'', notes:r.notes||'', attachmentUrl:r.attachment_url||'' }),
   },
   handDeliver: {
-    toSP: r => ({
-      slDateCompleted: r.dateCompleted || null,
-      slBuilder:       r.builder       || '',
-      slAddress:       r.address       || '',
-      slHandsets:      String(r.handsets || ''),
-      slKeys:          String(r.keys    || ''),
-      slBasePlate:     String(r.basePlate|| ''),
-      slManual:        String(r.manual  || ''),
-      slPowerMesh:     String(r.powerMesh|| ''),
-      slWallButton:    String(r.wallButton|| ''),
-      slDateCollected: r.dateCollected || null,
-      slCollectedBy:   r.collectedBy   || '',
-      slSignature:     r.signature     || '',
-    }),
-    fromSP: r => ({
-      _spId:         r.ID,
-      dateCompleted: r.slDateCompleted? r.slDateCompleted.split('T')[0] : '',
-      builder:       r.slBuilder      || '',
-      address:       r.slAddress      || '',
-      handsets:      r.slHandsets     || '',
-      keys:          r.slKeys         || '',
-      basePlate:     r.slBasePlate    || '',
-      manual:        r.slManual       || '',
-      powerMesh:     r.slPowerMesh    || '',
-      wallButton:    r.slWallButton   || '',
-      dateCollected: r.slDateCollected? r.slDateCollected.split('T')[0] : '',
-      collectedBy:   r.slCollectedBy  || '',
-      signature:     r.slSignature    || '',
-    }),
+    toSB:   r => ({ date_completed:r.dateCompleted||null, builder:r.builder||'',
+      address:r.address||'', handsets:String(r.handsets||''), keys:String(r.keys||''),
+      base_plate:String(r.basePlate||''), manual:String(r.manual||''),
+      power_mesh:String(r.powerMesh||''), wall_button:String(r.wallButton||''),
+      date_collected:r.dateCollected||null, collected_by:r.collectedBy||'',
+      signature:r.signature||'' }),
+    fromSB: r => ({ _sbId:r.id, dateCompleted:r.date_completed||'', builder:r.builder||'',
+      address:r.address||'', handsets:r.handsets||'', keys:r.keys||'',
+      basePlate:r.base_plate||'', manual:r.manual||'', powerMesh:r.power_mesh||'',
+      wallButton:r.wall_button||'', dateCollected:r.date_collected||'',
+      collectedBy:r.collected_by||'', signature:r.signature||'' }),
   },
   handOnsite: {
-    toSP: r => ({
-      slDate:      r.date      || null,
-      slBuilder:   r.builder   || '',
-      slAddress:   r.address   || '',
-      slHandsets:  String(r.handsets || ''),
-      slKeys:      String(r.keys    || ''),
-      slManual:    String(r.manual  || ''),
-      slWallButton:String(r.wallButton|| ''),
-      slWhereLeft: r.whereLeft || '',
-      slPhotos:    r.photos    || '',
-      slNotes:     r.notes     || '',
-    }),
-    fromSP: r => ({
-      _spId:     r.ID,
-      date:      r.slDate     ? r.slDate.split('T')[0] : '',
-      builder:   r.slBuilder  || '',
-      address:   r.slAddress  || '',
-      handsets:  r.slHandsets || '',
-      keys:      r.slKeys     || '',
-      manual:    r.slManual   || '',
-      wallButton:r.slWallButton|| '',
-      whereLeft: r.slWhereLeft|| '',
-      photos:    r.slPhotos   || '',
-      notes:     r.slNotes    || '',
-    }),
+    toSB:   r => ({ date:r.date||null, builder:r.builder||'', address:r.address||'',
+      handsets:String(r.handsets||''), keys:String(r.keys||''), manual:String(r.manual||''),
+      wall_button:String(r.wallButton||''), where_left:r.whereLeft||'',
+      photos:r.photos||'', notes:r.notes||'' }),
+    fromSB: r => ({ _sbId:r.id, date:r.date||'', builder:r.builder||'',
+      address:r.address||'', handsets:r.handsets||'', keys:r.keys||'',
+      manual:r.manual||'', wallButton:r.wall_button||'', whereLeft:r.where_left||'',
+      photos:r.photos||'', notes:r.notes||'' }),
+  },
+  handRecords: {
+    toSB:   r => ({ date_completed:r.dateCompleted||null, builder:r.builder||'',
+      address:r.address||'', handsets:String(r.handsets||''), keys:String(r.keys||''),
+      base_plate:String(r.basePlate||''), manual:String(r.manual||''),
+      power_mesh:String(r.powerMesh||''), wall_button:String(r.wallButton||''),
+      date_collected:r.dateCollected||null, collected_by:r.collectedBy||'',
+      signature:r.signature||'' }),
+    fromSB: r => ({ _sbId:r.id, dateCompleted:r.date_completed||'', builder:r.builder||'',
+      address:r.address||'', handsets:r.handsets||'', keys:r.keys||'',
+      basePlate:r.base_plate||'', manual:r.manual||'', powerMesh:r.power_mesh||'',
+      wallButton:r.wall_button||'', dateCollected:r.date_collected||'',
+      collectedBy:r.collected_by||'', signature:r.signature||'' }),
   },
   builderSummary: {
-    toSP: r => ({
-      slBuilder:       r.builder       || '',
-      slPO:            r.po            || '',
-      slAddress:       r.address       || '',
-      slSuburb:        r.suburb        || '',
-      slStatus:        r.status        || '',
-      slBuilderReqDate:r.builderReqDate|| null,
-      slSLBookedDate:  r.slBookedDate  || null,
-      slBuilderNewDate:r.builderNewDate|| null,
-      slBuilderNotes:  r.builderNotes  || '',
-      slFlag:          r.flag          || '',
-      slProfile:       r.profile       || '',
-      slColour:        r.colour        || '',
-      slLastUpdated:   r.lastUpdated   || null,
-      slSend:          r.send          || 'YES',
-    }),
-    fromSP: r => ({
-      _spId:        r.ID,
-      builder:      r.slBuilder       || '',
-      po:           r.slPO            || '',
-      address:      r.slAddress       || '',
-      suburb:       r.slSuburb        || '',
-      status:       r.slStatus        || '',
-      builderReqDate:r.slBuilderReqDate? r.slBuilderReqDate.split('T')[0]:'',
-      slBookedDate: r.slSLBookedDate  ? r.slSLBookedDate.split('T')[0]  :'',
-      builderNewDate:r.slBuilderNewDate? r.slBuilderNewDate.split('T')[0]:'',
-      builderNotes: r.slBuilderNotes  || '',
-      flag:         r.slFlag          || '',
-      profile:      r.slProfile       || '',
-      colour:       r.slColour        || '',
-      lastUpdated:  r.slLastUpdated   ? r.slLastUpdated.split('T')[0]   :'',
-      send:         r.slSend          || 'YES',
-    }),
+    toSB:   r => ({ job_id:r.jobId||'', builder:r.builder||'', po:r.po||'',
+      address:r.address||'', suburb:r.suburb||'', status:r.status||'',
+      builder_req_date:r.builderReqDate||null, sl_booked_date:r.slBookedDate||null,
+      builder_new_date:r.builderNewDate||null, builder_notes:r.builderNotes||'',
+      flag:r.flag||'', profile:r.profile||'', colour:r.colour||'',
+      last_updated:r.lastUpdated||null, send:r.send||'YES',
+      updated_at: new Date().toISOString() }),
+    fromSB: r => ({ _sbId:r.id, jobId:r.job_id||'', builder:r.builder||'',
+      po:r.po||'', address:r.address||'', suburb:r.suburb||'', status:r.status||'',
+      builderReqDate:r.builder_req_date||'', slBookedDate:r.sl_booked_date||'',
+      builderNewDate:r.builder_new_date||'', builderNotes:r.builder_notes||'',
+      flag:r.flag||'', profile:r.profile||'', colour:r.colour||'',
+      lastUpdated:r.last_updated||'', send:r.send||'YES' }),
   },
   archive: {
-    toSP: r => ({
-      slSage:       r.sage       || '',
-      slPO:         r.po         || '',
-      slCustomer:   r.customer   || '',
-      slAddress:    r.address    || '',
-      slSuburb:     r.suburb     || '',
-      slProfile:    r.profile    || '',
-      slColour:     r.colour     || '',
-      slDoorType:   r.doorType   || '',
-      slActH:       String(r.actH|| ''),
-      slActW:       String(r.actW|| ''),
-      slLHR:        r.lhr        || '',
-      slExtRail:    r.extRail    || 'NO',
-      slInstallDate:r.installDate|| null,
-      slEffort:     Number(r.effort)||0,
-      slNotes:      r.notes      || '',
-    }),
-    fromSP: r => ({
-      _spId:      r.ID,
-      sage:       r.slSage       || '',
-      po:         r.slPO         || '',
-      customer:   r.slCustomer   || '',
-      address:    r.slAddress    || '',
-      suburb:     r.slSuburb     || '',
-      profile:    r.slProfile    || '',
-      colour:     r.slColour     || '',
-      doorType:   r.slDoorType   || '',
-      actH:       r.slActH       || '',
-      actW:       r.slActW       || '',
-      lhr:        r.slLHR        || '',
-      extRail:    r.slExtRail    || 'NO',
-      installDate:r.slInstallDate? r.slInstallDate.split('T')[0]:'',
-      effort:     r.slEffort     || 0,
-      notes:      r.slNotes      || '',
-    }),
+    toSB:   r => ({ job_id:r.jobId||'', sage:r.sage||'', po:r.po||'',
+      customer:r.customer||'', address:r.address||'', suburb:r.suburb||'',
+      profile:r.profile||'', colour:r.colour||'', door_type:r.doorType||'',
+      act_h:String(r.actH||''), act_w:String(r.actW||''), lhr:r.lhr||'',
+      ext_rail:r.extRail||'NO', install_date:r.installDate||null,
+      effort:Number(r.effort)||0, notes:r.notes||'' }),
+    fromSB: r => ({ _sbId:r.id, jobId:r.job_id||'', sage:r.sage||'', po:r.po||'',
+      customer:r.customer||'', address:r.address||'', suburb:r.suburb||'',
+      profile:r.profile||'', colour:r.colour||'', doorType:r.door_type||'',
+      actH:r.act_h||'', actW:r.act_w||'', lhr:r.lhr||'', extRail:r.ext_rail||'NO',
+      installDate:r.install_date||'', effort:r.effort||0, notes:r.notes||'' }),
   },
 };
 
 // ── Connection state ──────────────────────────────────────────
-let spConnected = false;
-let spConnecting = false;
+let sbConnected = false;
 
-async function checkSPConnection() {
+async function checkSBConnection() {
   try {
-    const resp = await fetch(`${SP_SITE}/_api/web/title`, {
-      headers: { 'Accept': 'application/json;odata=verbose' },
-      credentials: 'include',
+    const resp = await fetch(`${SB_URL}/rest/v1/sl_jobs?select=id&limit=1`, {
+      headers: SB_HEADERS,
     });
     return resp.ok;
-  } catch(e) {
-    return false;
-  }
+  } catch(e) { return false; }
 }
 
-// ── Load all data from SharePoint ────────────────────────────
+// ── Load all data from Supabase ───────────────────────────────
 async function loadAllFromSP() {
-  spConnecting = true;
-  updateSyncStatus('⟳ Connecting to SharePoint Lists...');
-
-  const ok = await checkSPConnection();
+  updateSyncStatus('⟳ Connecting to Supabase...');
+  const ok = await checkSBConnection();
   if (!ok) {
-    spConnected = false;
-    spConnecting = false;
-    updateSyncStatus('⚠ Not connected to SharePoint — using local data. Open this file from your SharePoint site.');
+    sbConnected = false;
+    updateSyncStatus('⚠ Could not connect to database — using local data');
     return;
   }
-
-  spConnected = true;
-  updateSyncStatus('⟳ Loading data from SharePoint...');
+  sbConnected = true;
+  updateSyncStatus('⟳ Loading live data...');
 
   try {
-    const results = await Promise.allSettled([
-      spGet(LIST_MAP.jobs).then(rows => rows.map(FIELD_MAP.jobs.fromSP)),
-      spGet(LIST_MAP.measure).then(rows => rows.map(FIELD_MAP.measure.fromSP)),
-      spGet(LIST_MAP.handDeliver).then(rows => rows.map(FIELD_MAP.handDeliver.fromSP)),
-      spGet(LIST_MAP.handOnsite).then(rows => rows.map(FIELD_MAP.handOnsite.fromSP)),
-      spGet(LIST_MAP.builderSummary).then(rows => rows.map(FIELD_MAP.builderSummary.fromSP)),
-      spGet(LIST_MAP.archive).then(rows => rows.map(FIELD_MAP.archive.fromSP)),
+    const [j, m, hd, ho, hr, bs, ar] = await Promise.allSettled([
+      sbGet('sl_jobs'),
+      sbGet('sl_measure'),
+      sbGet('sl_hand_deliver'),
+      sbGet('sl_hand_onsite'),
+      sbGet('sl_hand_records'),
+      sbGet('sl_builder_summary'),
+      sbGet('sl_archive'),
     ]);
 
-    const [j, m, hd, ho, bs, ar] = results;
+    if (j.status  === 'fulfilled') { jobs = j.value.map(SB_MAP.jobs.fromSB); saveMod('jobs', jobs); nextId = Math.max(0,...jobs.map(x=>x.id||0))+1; persistJobs(); }
+    if (m.status  === 'fulfilled') { measureJobs    = m.value.map(SB_MAP.measure.fromSB);        saveMod('measure',       measureJobs);    }
+    if (hd.status === 'fulfilled') { handDeliver    = hd.value.map(SB_MAP.handDeliver.fromSB);   saveMod('handDeliver',   handDeliver);    }
+    if (ho.status === 'fulfilled') { handOnsite     = ho.value.map(SB_MAP.handOnsite.fromSB);    saveMod('handOnsite',    handOnsite);     }
+    if (hr.status === 'fulfilled') { handRecords    = hr.value.map(SB_MAP.handRecords.fromSB);   saveMod('handRecords',   handRecords);    }
+    if (bs.status === 'fulfilled') { builderSummary = bs.value.map(SB_MAP.builderSummary.fromSB);saveMod('builderSummary',builderSummary); }
+    if (ar.status === 'fulfilled') { archiveJobs    = ar.value.map(SB_MAP.archive.fromSB);       saveMod('archive',       archiveJobs);    }
 
-    if (j.status  === 'fulfilled' && j.value.length  >= 0) { jobs = j.value;   saveMod('jobs', jobs); nextId = Math.max(0,...jobs.map(x=>x.id||0))+1; }
-    if (m.status  === 'fulfilled' && m.value.length  >= 0) { measureJobs    = m.value;  saveMod('measure',       measureJobs);    }
-    if (hd.status === 'fulfilled' && hd.value.length >= 0) { handDeliver    = hd.value; saveMod('handDeliver',   handDeliver);    }
-    if (ho.status === 'fulfilled' && ho.value.length >= 0) { handOnsite     = ho.value; saveMod('handOnsite',    handOnsite);     }
-    if (bs.status === 'fulfilled' && bs.value.length >= 0) { builderSummary = bs.value; saveMod('builderSummary',builderSummary); }
-    if (ar.status === 'fulfilled' && ar.value.length >= 0) { archiveJobs    = ar.value; saveMod('archive',       archiveJobs);    }
-
-    const failed = results.filter(r => r.status === 'rejected').length;
-    if (failed > 0) {
-      updateSyncStatus(`⚠ Connected — ${6-failed}/6 lists loaded. Some lists may not exist yet.`);
-    } else {
-      updateSyncStatus(`✓ Connected to SharePoint — live data — ${jobs.length} jobs`);
-    }
-    spConnecting = false;
+    const total = jobs.length + measureJobs.length;
+    updateSyncStatus(`✓ Live — ${jobs.length} diary jobs, ${measureJobs.length} measure records`);
     render();
   } catch(e) {
-    console.error('SP load error:', e);
-    spConnecting = false;
-    updateSyncStatus('⚠ Error loading from SharePoint — using local data');
+    console.error('Load error:', e);
+    updateSyncStatus('⚠ Load failed — using local data. ' + e.message);
   }
 }
 
-// ── Save a single record to SharePoint ───────────────────────
-// Called after any data mutation — upserts by _spId or creates new
-
-async function spSaveRecord(dataKey, record) {
-  if (!spConnected) return;
-  const map = FIELD_MAP[dataKey];
-  const listName = LIST_MAP[dataKey];
-  if (!map || !listName) return;
-
+// ── Save single record to Supabase ────────────────────────────
+async function sbSaveRecord(table, sbMap, record) {
+  if (!sbConnected) return;
   try {
-    const fields = map.toSP(record);
-    if (record._spId) {
-      await spUpdate(listName, record._spId, fields);
+    const row = sbMap.toSB(record);
+    if (record._sbId) {
+      const updated = await sbUpdate(table, record._sbId, row);
+      if (updated) record._sbId = updated.id;
     } else {
-      const created = await spCreate(listName, fields);
-      record._spId = created.d.ID;
+      const created = await sbInsert(table, row);
+      if (created) record._sbId = created.id;
     }
-    updateSyncStatus(`✓ Saved to SharePoint — ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
+    updateSyncStatus('✓ Saved — ' + new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
-    console.error(`SP save error [${dataKey}]:`, e);
-    updateSyncStatus(`⚠ Save failed — check SharePoint connection`);
+    console.error(`Save error [${table}]:`, e);
+    updateSyncStatus('⚠ Save failed: ' + e.message);
   }
+}
+
+// Convenience wrappers used throughout the app
+async function spSaveRecord(dataKey, record) {
+  const map = { jobs:'sl_jobs', measure:'sl_measure', handDeliver:'sl_hand_deliver',
+                handOnsite:'sl_hand_onsite', builderSummary:'sl_builder_summary', archive:'sl_archive' };
+  const sbMap = { jobs:SB_MAP.jobs, measure:SB_MAP.measure, handDeliver:SB_MAP.handDeliver,
+                  handOnsite:SB_MAP.handOnsite, builderSummary:SB_MAP.builderSummary, archive:SB_MAP.archive };
+  if (map[dataKey]) await sbSaveRecord(map[dataKey], sbMap[dataKey], record);
 }
 
 async function spDeleteRecord(dataKey, record) {
-  if (!spConnected || !record._spId) return;
-  const listName = LIST_MAP[dataKey];
-  try {
-    await spDelete(listName, record._spId);
-  } catch(e) {
-    console.error(`SP delete error [${dataKey}]:`, e);
+  if (!sbConnected || !record._sbId) return;
+  const map = { jobs:'sl_jobs', measure:'sl_measure', handDeliver:'sl_hand_deliver',
+                handOnsite:'sl_hand_onsite', builderSummary:'sl_builder_summary', archive:'sl_archive' };
+  if (map[dataKey]) {
+    try { await sbDelete(map[dataKey], record._sbId); }
+    catch(e) { console.error('Delete error:', e); }
   }
 }
 
-// persistJobs — saves to localStorage (SP saves happen per-record via spSaveRecord)
-// No override needed — original persistJobs() is used directly
-
-// ── saveMod override — also syncs full list to SP ────────────
-// For bulk operations (import), sync everything
+// ── Bulk sync (used by import) ────────────────────────────────
 async function syncAllToSP() {
-  if (!spConnected) return;
-  updateSyncStatus('⟳ Syncing all data to SharePoint...');
+  if (!sbConnected) { updateSyncStatus('⚠ Not connected'); return; }
+  updateSyncStatus('⟳ Syncing all data to Supabase...');
+
   try {
-    // For each dataset, get current SP items and reconcile
-    const datasets = [
-      { key:'jobs',          data:jobs,          map:FIELD_MAP.jobs },
-      { key:'measure',       data:measureJobs,   map:FIELD_MAP.measure },
-      { key:'handDeliver',   data:handDeliver,   map:FIELD_MAP.handDeliver },
-      { key:'handOnsite',    data:handOnsite,    map:FIELD_MAP.handOnsite },
-      { key:'builderSummary',data:builderSummary,map:FIELD_MAP.builderSummary },
-      { key:'archive',       data:archiveJobs,   map:FIELD_MAP.archive },
-    ];
+    // Jobs — upsert by id
+    const jobRows = jobs.map(SB_MAP.jobs.toSB);
+    if (jobRows.length) await sbUpsert('sl_jobs', jobRows, 'id');
 
-    for (const ds of datasets) {
-      const listName = LIST_MAP[ds.key];
-      const spItems  = await spGet(listName);
-
-      // Delete all existing SP items
-      for (const item of spItems) {
-        await spDelete(listName, item.ID);
-      }
-      // Create fresh from local data
-      for (const record of ds.data) {
-        const fields = ds.map.toSP(record);
-        const created = await spCreate(listName, fields);
-        record._spId = created.d.ID;
+    // Measure — delete all then reinsert (simpler for bulk)
+    const measureRows = measureJobs.map(SB_MAP.measure.toSB);
+    if (measureRows.length) {
+      await fetch(`${SB_URL}/rest/v1/sl_measure?id=gt.0`, { method:'DELETE', headers:SB_HEADERS });
+      // Insert in batches of 500
+      for (let i=0; i<measureRows.length; i+=500) {
+        await sbUpsert('sl_measure', measureRows.slice(i,i+500), 'id');
       }
     }
-    updateSyncStatus(`✓ All data synced to SharePoint — ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
+
+    // Other tables
+    const tables = [
+      { name:'sl_hand_deliver',    data:handDeliver,    map:SB_MAP.handDeliver    },
+      { name:'sl_hand_onsite',     data:handOnsite,     map:SB_MAP.handOnsite     },
+      { name:'sl_hand_records',    data:handRecords,    map:SB_MAP.handRecords    },
+      { name:'sl_builder_summary', data:builderSummary, map:SB_MAP.builderSummary },
+      { name:'sl_archive',         data:archiveJobs,    map:SB_MAP.archive        },
+    ];
+
+    for (const t of tables) {
+      if (!t.data.length) continue;
+      // Delete all existing
+      await fetch(`${SB_URL}/rest/v1/${t.name}?id=gt.0`, { method:'DELETE', headers:SB_HEADERS });
+      // Insert in batches
+      const rows = t.data.map(t.map.toSB);
+      for (let i=0; i<rows.length; i+=500) {
+        await fetch(`${SB_URL}/rest/v1/${t.name}`, {
+          method:'POST', headers:SB_HEADERS, body:JSON.stringify(rows.slice(i,i+500))
+        });
+      }
+    }
+
+    updateSyncStatus(`✓ All data synced to Supabase — ${new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`);
   } catch(e) {
     console.error('Sync error:', e);
-    updateSyncStatus('⚠ Sync failed — check console for details');
+    updateSyncStatus('⚠ Sync failed: ' + e.message);
   }
 }
 
 function updateSyncStatus(msg) {
   const el = document.getElementById('sync-status');
   if (!el) return;
-  if (msg) {
-    el.textContent = msg;
-    el.style.color = msg.startsWith('✓') ? '#4ade80'
-                   : msg.startsWith('⚠') ? '#fbbf24'
-                   : msg.startsWith('⟳') ? '#93c3ea'
-                   : '#94a3b8';
-    return;
-  }
-  el.textContent = spConnected
-    ? '✓ Connected to SharePoint Lists — live data'
-    : '⚠ Not connected — open this file from your SharePoint site for live data';
-  el.style.color = spConnected ? '#4ade80' : '#fbbf24';
+  el.textContent = msg;
+  el.style.color = msg.startsWith('✓') ? '#4ade80'
+                 : msg.startsWith('⚠') ? '#fbbf24'
+                 : '#94a3b8';
 }
 
-// ── Config UI — show SP connection status ─────────────────────
+// renderListsSetup — shown in Config page
 function renderListsSetup() {
   return `
-  <div class="config-section" style="border:2px solid ${spConnected?'#22c55e':'#f59e0b'}">
-    <div class="config-section-header" style="background:${spConnected?'#dcfce7':'#fffbeb'}">
+  <div class="config-section" style="border:2px solid ${sbConnected?'#22c55e':'#f59e0b'}">
+    <div class="config-section-header" style="background:${sbConnected?'#dcfce7':'#fffbeb'}">
       <div>
-        <div class="config-section-title" style="color:${spConnected?'#166534':'#92400e'}">
-          ${spConnected?'✓ Connected to SharePoint Lists':'⚠ SharePoint Lists — Not Connected'}
+        <div class="config-section-title" style="color:${sbConnected?'#166534':'#92400e'}">
+          ${sbConnected?'✓ Connected to Supabase — Live Data':'⚠ Connecting to Supabase...'}
         </div>
         <div class="config-section-desc">
-          ${spConnected
-            ? `Reading and writing live data from: <strong>${SP_SITE}</strong>`
-            : `This app must be opened from your SharePoint site to connect automatically. Upload the HTML file to your Install Scheduling channel Documents tab and open it from there.`
-          }
+          Database: <code>dmrbrcezogeoziafhzxj.supabase.co</code> — 
+          ${sbConnected?'All changes sync instantly across all devices':'Retrying connection...'}
         </div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button onclick="loadAllFromSP().then(()=>render())"
-          style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">
-          ⟳ Reconnect
-        </button>
-        ${spConnected?`<button onclick="if(confirm('Sync all local data to SharePoint? This overwrites SharePoint with your current local data.'))syncAllToSP()"
-          style="background:#166534;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">
-          ↑ Force Sync to SP
-        </button>`:''}
-      </div>
-    </div>
-    <div class="config-body">
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;font-size:11px;color:#1e40af">
-        <strong>SharePoint site:</strong> <code style="background:#dbeafe;padding:1px 6px;border-radius:3px;font-size:10px">${SP_SITE}</code><br><br>
-        <strong>Required Lists (must exist on this site):</strong>
-        SL_InstallJobs, SL_MeasureJobs, SL_HandsetDeliver, SL_HandsetOnsite, SL_BuilderSummary, SL_Archive<br><br>
-        <strong>How to connect:</strong> Upload this HTML file to the Install Scheduling channel in Teams →
-        open it from SharePoint/Teams (not from your desktop) → connection is automatic.
-      </div>
-      ${spConnected?`
-      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${Object.entries(LIST_MAP).map(([key,list])=>`
-          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 10px;font-size:11px">
-            <span style="font-weight:700;color:#166534">✓ ${list}</span>
-          </div>`).join('')}
-      </div>`:''}
+      <button onclick="loadAllFromSP().then(()=>render())"
+        style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer">
+        ⟳ Reconnect
+      </button>
     </div>
   </div>`;
-}
-
-
-
-// ── SharePoint Attachments ─────────────────────────────────────
-function openSPAttachments(spId, listName) {
-  // Opens the SharePoint item's attachments page in a new tab
-  const url = `${SP_SITE}/Lists/${listName}/DispForm.aspx?ID=${spId}`;
-  window.open(url, '_blank');
-}
-
-function getSPAttachmentUrl(spId, listName) {
-  // Returns direct URL to the SP list item for linking
-  return `${SP_SITE}/Lists/${listName}/DispForm.aspx?ID=${spId}`;
-}
-
-
-// ═══════════════════════════════════════════════════════════════
-// NAVIGATION & RENDER DISPATCHER
-// ═══════════════════════════════════════════════════════════════
-function setView(v) {
-  currentView = v;
-  ["diary","dashboard","config","measure","rto","archive","handdeliver","handonsite","handrecords",
-   "reprun","certifier","buildersummary","directory","stock"]
-    .forEach(n => { const el = document.getElementById('btn-'+n); if (el) el.classList.toggle("active", n===v); });
-  render();
-}
-
-function prevWeek() {
-  const d = new Date(currentWeekStart + "T00:00:00");
-  d.setDate(d.getDate() - 7);
-  currentWeekStart = d.toISOString().split("T")[0];
-  render();
-}
-
-function nextWeek() {
-  const d = new Date(currentWeekStart + "T00:00:00");
-  d.setDate(d.getDate() + 7);
-  currentWeekStart = d.toISOString().split("T")[0];
-  render();
-}
-
-function goToday() {
-  currentWeekStart = getMondayOf(new Date().toISOString().split("T")[0]);
-  render();
-}
-
-function render() {
-  try {
-    const jc = document.getElementById("job-count");
-    if (jc) jc.textContent = `${jobs.length} jobs`;
-    console.log('render() called, currentView:', currentView);
-    if      (currentView === "diary")          renderDiary();
-    else if (currentView === "dashboard")      renderDashboard();
-    else if (currentView === "config")         renderConfig();
-    else if (currentView === "measure")        renderMeasure();
-    else if (currentView === "rto")            renderRTO();
-    else if (currentView === "archive")        renderArchive();
-    else if (currentView === "handdeliver")    renderHandDeliver();
-    else if (currentView === "handonsite")     renderHandOnsite();
-    else if (currentView === "handrecords")    renderHandRecords();
-    else if (currentView === "reprun")         renderRepRun();
-    else if (currentView === "certifier")      renderCertifier();
-    else if (currentView === "buildersummary") renderBuilderSummary();
-    else if (currentView === "directory")      renderDirectory();
-    else if (currentView === "stock")          renderStock();
-    renderLegend();
-  } catch(e) {
-    console.error('render() error:', e);
-    document.getElementById('app').innerHTML = `
-      <div style="padding:40px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">⚠</div>
-        <div style="font-size:16px;font-weight:700;color:#991b1b;margin-bottom:8px">Error loading ${currentView} tab</div>
-        <div style="font-size:12px;color:#6b7280;font-family:monospace;background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:16px;text-align:left">${e.message}</div>
-        <button onclick="currentView='diary';render()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-weight:700">← Back to Diary</button>
-      </div>`;
-  }
-}
-
-function renderLegend() {
-  const el = document.getElementById("legend");
-  if (!el) return;
-  if (currentView !== "diary") { el.innerHTML = ""; return; }
-  el.innerHTML = `<span class="legend-label">STATUS:</span>` +
-    STATUSES.map(s => `<span class="status-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.val}</span>`).join("") +
-    `<span style="font-size:10px;color:#9ca3af;margin-left:8px">Click any status badge on a job card to cycle through statuses instantly</span>`;
 }
 
 
@@ -3380,6 +3084,61 @@ function renderAuditModal(jobId) {
   document.body.appendChild(modal);
 }
 
+
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION & RENDER DISPATCHER
+// ═══════════════════════════════════════════════════════════════
+function setView(v) {
+  currentView = v;
+  ["diary","dashboard","config","measure","rto","archive","handdeliver","handonsite","handrecords",
+   "reprun","certifier","buildersummary","directory","stock"]
+    .forEach(n => { const el = document.getElementById('btn-'+n); if (el) el.classList.toggle("active", n===v); });
+  render();
+}
+function prevWeek() { const d=new Date(currentWeekStart+"T00:00:00"); d.setDate(d.getDate()-7); currentWeekStart=d.toISOString().split("T")[0]; render(); }
+function nextWeek() { const d=new Date(currentWeekStart+"T00:00:00"); d.setDate(d.getDate()+7); currentWeekStart=d.toISOString().split("T")[0]; render(); }
+function goToday()  { currentWeekStart=getMondayOf(new Date().toISOString().split("T")[0]); render(); }
+
+function render() {
+  try {
+    const jc = document.getElementById("job-count");
+    if (jc) jc.textContent = `${jobs.length} jobs`;
+    if      (currentView==="diary")          renderDiary();
+    else if (currentView==="dashboard")      renderDashboard();
+    else if (currentView==="config")         renderConfig();
+    else if (currentView==="measure")        renderMeasure();
+    else if (currentView==="rto")            renderRTO();
+    else if (currentView==="archive")        renderArchive();
+    else if (currentView==="handdeliver")    renderHandDeliver();
+    else if (currentView==="handonsite")     renderHandOnsite();
+    else if (currentView==="handrecords")    renderHandRecords();
+    else if (currentView==="reprun")         renderRepRun();
+    else if (currentView==="certifier")      renderCertifier();
+    else if (currentView==="buildersummary") renderBuilderSummary();
+    else if (currentView==="directory")      renderDirectory();
+    else if (currentView==="stock")          renderStock();
+    renderLegend();
+  } catch(e) {
+    console.error("render() error:", e);
+    const app = document.getElementById("app");
+    if (app) app.innerHTML = `<div style="padding:40px;text-align:center">
+      <div style="font-size:48px">⚠</div>
+      <div style="font-size:16px;font-weight:700;color:#991b1b;margin:12px 0">Error in ${currentView} tab</div>
+      <div style="font-size:12px;color:#6b7280;font-family:monospace;background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:16px">${e.message}</div>
+      <button onclick="currentView='diary';render()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-weight:700">← Back to Diary</button>
+    </div>`;
+  }
+}
+
+function renderLegend() {
+  const el = document.getElementById("legend");
+  if (!el) return;
+  if (currentView !== "diary") { el.innerHTML=""; return; }
+  el.innerHTML = `<span class="legend-label">STATUS:</span>` +
+    STATUSES.map(s=>`<span class="status-badge" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">${s.val}</span>`).join("") +
+    `<span style="font-size:10px;color:#9ca3af;margin-left:8px">Click any status badge to cycle through statuses</span>`;
+}
 
 // INIT
 rebuildLookups();
