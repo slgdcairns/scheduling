@@ -2844,7 +2844,8 @@ async function loadAllFromSP() {
   }
   if (!ok) {
     sbConnected = false;
-    updateSyncStatus('⚠ Could not connect — using local data (check internet connection)');
+    updateSyncStatus('⚠ Not connected — using local data');
+    render(); // render whatever is in local storage
     return;
   }
   sbConnected = true;
@@ -2875,6 +2876,7 @@ async function loadAllFromSP() {
   } catch(e) {
     console.error('Load error:', e);
     updateSyncStatus('⚠ Load failed — using local data. ' + e.message);
+    render(); // render from local storage on error
   }
 }
 
@@ -3434,9 +3436,14 @@ function renderFitterRunSheetButtons(weekStart) {
 
 // INIT
 rebuildLookups();
-render();
-// Connect to SharePoint Lists
-loadAllFromSP();
+// Show loading state immediately
+const appEl = document.getElementById('app');
+if (appEl) appEl.innerHTML = '<div style="padding:60px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⟳</div><div style="font-size:14px;color:#6b7280;font-weight:600">Connecting to database...</div></div>';
+// Connect to Supabase - render() is called inside loadAllFromSP when data arrives
+loadAllFromSP().then(() => {
+  // If still showing loading (Supabase had no data), render from local storage
+  if (jobs.length === 0 && measureJobs.length === 0) render();
+}).catch(() => render());
 </script>
 </body>
 </html>
