@@ -530,8 +530,7 @@ function fitterMax(fitter,fJobs){
   const isAway=zones.some(z=>z&&(z.includes("OUT OF TOWN")||z.includes("TABLELANDS")));
   return isAway?fitter.maxAway:fitter.maxLocal;
 }
-function getWeekDays(startIso){const d=new Date(startIso+"T00:00:00");return Array.from({length:6},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});
-}
+function getWeekDays(startIso){const d=new Date(startIso+"T00:00:00");return Array.from({length:6},(_,i)=>{const dd=new Date(d);dd.setDate(d.getDate()+i);return dd.toISOString().split("T")[0];});}
 function getMondayOf(iso){
   const d=new Date(iso+"T00:00:00");const day=d.getDay();
   d.setDate(d.getDate()-(day===0?6:day-1));return d.toISOString().split("T")[0];
@@ -3263,7 +3262,7 @@ async function loadAllFromSP() {
   } catch(e) {
     console.error('Load error:', e);
     updateSyncStatus('⚠ Load failed — using local data. ' + e.message);
-    render(); // render from local storage on error
+    render();
   }
 }
 
@@ -4060,15 +4059,16 @@ function cleanBuilderSummary() {
 
 // INIT
 rebuildLookups();
-cleanBuilderSummary(); // drop completed jobs > 7 days old
-// Show loading state immediately
-const appEl = document.getElementById('app');
-if (appEl) appEl.innerHTML = '<div style="padding:60px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⟳</div><div style="font-size:14px;color:#6b7280;font-weight:600">Connecting to database...</div></div>';
-// Connect to Supabase - render() is called inside loadAllFromSP when data arrives
-loadAllFromSP().then(() => {
-  // If still showing loading (Supabase had no data), render from local storage
-  if (jobs.length === 0 && measureJobs.length === 0) render();
-}).catch(() => render());
+cleanBuilderSummary();
+
+// Always render immediately from local storage so app is never blank
+render();
+
+// Then try Supabase in background — updates display if successful
+loadAllFromSP().catch(e => {
+  console.error('Supabase load failed:', e);
+  updateSyncStatus('⚠ Not connected — using local data');
+});
 </script>
 </body>
 </html>
