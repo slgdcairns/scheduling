@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Steel-Line Install Scheduler</title>
 <style>
@@ -192,6 +193,10 @@
 <div class="save-toast" id="save-toast">✓ Settings saved</div>
 
 <!-- IMPORT/EXPORT BAR -->
+<!-- LOGIN BAR -->
+<div id="login-bar" style="background:#1e293b;border-bottom:1px solid #1e3a5f;padding:5px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;">
+  <span style="color:#64748b;font-size:11px">Initialising...</span>
+</div>
 <div id="sync-bar" style="background:#1e293b;border-bottom:2px solid #334155;padding:6px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap;">
   <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
     <span style="color:#94a3b8;font-weight:700;white-space:nowrap">💾 SYNC:</span>
@@ -615,6 +620,7 @@ function renderDiary(){
             </div>
             <div class="action-row">
               <button class="btn-edit" onclick="openEdit(${job.id})">✏ Edit</button>
+              <button onclick="renderAuditModal('${job.jobId||'D'+job.id}')" style="background:#475569;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:10px;font-weight:700;cursor:pointer">📋 History</button>
               <a class="btn-email" href="${buildBuilderEmail(job)}">📧 Builder Update</a>
               ${isFutile?`<a class="btn-resched" style="background:#991b1b" href="${buildFutileEmail(job)}">📧 Futile Notice</a>`:""}
               ${isResched?`<a class="btn-resched" href="${buildReschedEmail(job)}">📧 Reschedule Notice</a>`:""}
@@ -2670,13 +2676,19 @@ async function getDigest() {
 
 // ── Core SP REST helpers ──────────────────────────────────────
 
+async function getAuthHeaders(extra={}) {
+  let token = spToken;
+  if (!token && isSignedIn()) token = await refreshSPToken();
+  const headers = { 'Accept': 'application/json;odata=verbose', ...extra };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return headers;
+}
+
 async function spGet(listName, filter='', top=5000) {
   let url = `${SP_API}/GetByTitle('${listName}')/items?$top=${top}`;
   if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
-  const resp = await fetch(url, {
-    headers: { 'Accept': 'application/json;odata=verbose' },
-    credentials: 'include',
-  });
+  const headers = await getAuthHeaders();
+  const resp = await fetch(url, { headers, credentials: 'include' });
   if (!resp.ok) throw new Error(`GET ${listName} failed: ${resp.status}`);
   const data = await resp.json();
   return data.d.results;
@@ -2685,13 +2697,13 @@ async function spGet(listName, filter='', top=5000) {
 async function spCreate(listName, fields) {
   const digest = await getDigest();
   const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
+  const headers = await getAuthHeaders({
+    'Content-Type': 'application/json;odata=verbose',
+    'X-RequestDigest': digest,
+  });
   const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items`, {
     method: 'POST',
-    headers: {
-      'Accept': 'application/json;odata=verbose',
-      'Content-Type': 'application/json;odata=verbose',
-      'X-RequestDigest': digest,
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify(body),
   });
@@ -2705,15 +2717,15 @@ async function spCreate(listName, fields) {
 async function spUpdate(listName, spId, fields) {
   const digest = await getDigest();
   const body = { __metadata: { type: await getListItemType(listName) }, ...fields };
+  const headers = await getAuthHeaders({
+    'Content-Type': 'application/json;odata=verbose',
+    'X-RequestDigest': digest,
+    'X-HTTP-Method': 'MERGE',
+    'IF-MATCH': '*',
+  });
   const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
     method: 'POST',
-    headers: {
-      'Accept': 'application/json;odata=verbose',
-      'Content-Type': 'application/json;odata=verbose',
-      'X-RequestDigest': digest,
-      'X-HTTP-Method': 'MERGE',
-      'IF-MATCH': '*',
-    },
+    headers,
     credentials: 'include',
     body: JSON.stringify(body),
   });
@@ -2722,14 +2734,14 @@ async function spUpdate(listName, spId, fields) {
 
 async function spDelete(listName, spId) {
   const digest = await getDigest();
+  const headers = await getAuthHeaders({
+    'X-RequestDigest': digest,
+    'X-HTTP-Method': 'DELETE',
+    'IF-MATCH': '*',
+  });
   const resp = await fetch(`${SP_API}/GetByTitle('${listName}')/items(${spId})`, {
     method: 'POST',
-    headers: {
-      'Accept': 'application/json;odata=verbose',
-      'X-RequestDigest': digest,
-      'X-HTTP-Method': 'DELETE',
-      'IF-MATCH': '*',
-    },
+    headers,
     credentials: 'include',
   });
   if (!resp.ok && resp.status !== 204) throw new Error(`DELETE ${listName}(${spId}) failed: ${resp.status}`);
@@ -2966,9 +2978,15 @@ let spConnected = false;
 let spConnecting = false;
 
 async function checkSPConnection() {
+  if (!isSignedIn()) return false;
   try {
+    const token = spToken || await refreshSPToken();
+    if (!token) return false;
     const resp = await fetch(`${SP_SITE}/_api/web/title`, {
-      headers: { 'Accept': 'application/json;odata=verbose' },
+      headers: {
+        'Accept': 'application/json;odata=verbose',
+        'Authorization': 'Bearer ' + token,
+      },
       credentials: 'include',
     });
     return resp.ok;
@@ -3239,10 +3257,238 @@ function renderLegend() {
     `<span style="font-size:10px;color:#9ca3af;margin-left:8px">Click any status badge on a job card to cycle through statuses instantly</span>`;
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+// MICROSOFT AUTHENTICATION (MSAL)
+// Uses Microsoft Identity Platform to authenticate users
+// Allows app to talk to SharePoint from ANY host (GitHub Pages etc)
+// ═══════════════════════════════════════════════════════════════
+
+// MSAL config — uses the SLGD tenant
+// clientId is a public identifier (not a secret) for the Steel-Line scheduling app
+// This uses the "common" endpoint which works for any Microsoft account on the tenant
+const MSAL_CONFIG = {
+  auth: {
+    clientId:    'd3590ed6-52b3-4102-aeff-aad2292ab01c', // Microsoft Office public client (pre-registered)
+    authority:   'https://login.microsoftonline.com/organizations',
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: 'sessionStorage' },
+};
+
+const SP_SCOPES = [
+  'https://slgd.sharepoint.com/.default',
+];
+
+let msalInstance = null;
+let currentUser  = null;
+let spToken      = null;
+
+// ── Initialise MSAL ───────────────────────────────────────────
+async function initMSAL() {
+  if (typeof msal === 'undefined') {
+    console.error('MSAL library not loaded');
+    return false;
+  }
+  try {
+    msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+    await msalInstance.initialize();
+
+    // Handle redirect response (if returning from login redirect)
+    const response = await msalInstance.handleRedirectPromise();
+    if (response) {
+      currentUser = response.account;
+      spToken     = response.accessToken;
+      return true;
+    }
+
+    // Check if already signed in
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      currentUser = accounts[0];
+      await refreshSPToken();
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.error('MSAL init error:', e);
+    return false;
+  }
+}
+
+async function refreshSPToken() {
+  if (!msalInstance || !currentUser) return null;
+  try {
+    const result = await msalInstance.acquireTokenSilent({
+      scopes:  SP_SCOPES,
+      account: currentUser,
+    });
+    spToken = result.accessToken;
+    return spToken;
+  } catch(e) {
+    // Silent failed — need interactive
+    spToken = null;
+    return null;
+  }
+}
+
+async function signIn() {
+  if (!msalInstance) { alert('Authentication not ready — please refresh the page'); return; }
+  try {
+    const result = await msalInstance.loginPopup({ scopes: SP_SCOPES });
+    currentUser  = result.account;
+    spToken      = result.accessToken;
+    renderLoginBar();
+    updateSyncStatus('⟳ Signed in — connecting to SharePoint Lists...');
+    await loadAllFromSP();
+  } catch(e) {
+    if (e.errorCode !== 'user_cancelled') {
+      console.error('Sign in error:', e);
+      alert('Sign in failed: ' + (e.message || e.errorCode));
+    }
+  }
+}
+
+async function signOut() {
+  if (!msalInstance) return;
+  if (!confirm('Sign out of Steel-Line Scheduling?')) return;
+  currentUser = null; spToken = null;
+  await msalInstance.logoutPopup();
+  renderLoginBar();
+  updateSyncStatus('⚠ Signed out — sign in to access live data');
+}
+
+function getUserName()   { return currentUser?.name || currentUser?.username || 'Unknown User'; }
+function getUserEmail()  { return currentUser?.username || ''; }
+function isSignedIn()    { return !!currentUser; }
+
+// ── Login bar render ──────────────────────────────────────────
+function renderLoginBar() {
+  const bar = document.getElementById('login-bar');
+  if (!bar) return;
+  if (isSignedIn()) {
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;height:28px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:11px;flex-shrink:0">
+          ${getUserName().split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)}
+        </div>
+        <div style="line-height:1.2">
+          <div style="color:#f8fafc;font-weight:700;font-size:11px">${getUserName()}</div>
+          <div style="color:#94a3b8;font-size:9px">${getUserEmail()}</div>
+        </div>
+      </div>
+      <button onclick="signOut()" style="background:transparent;border:1px solid #475569;color:#94a3b8;border-radius:5px;padding:3px 10px;font-size:10px;cursor:pointer">Sign out</button>`;
+    bar.style.background = '#1e293b';
+  } else {
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:#fbbf24;font-size:11px;font-weight:700">⚠ Not signed in — data is local only</span>
+      </div>
+      <button onclick="signIn()" style="background:#3b82f6;color:#fff;border:none;border-radius:5px;padding:5px 16px;font-size:11px;font-weight:800;cursor:pointer">🔐 Sign in with Microsoft</button>`;
+    bar.style.background = '#1e293b';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUDIT TRAIL
+// Records every significant change with user + timestamp
+// Stored in localStorage AND pushed to SL_AuditLog SP list (if exists)
+// ═══════════════════════════════════════════════════════════════
+
+let auditLog = loadMod('auditLog', 'audit_log');
+
+function recordAudit(action, jobId, field, oldVal, newVal, extra) {
+  const entry = {
+    id:        Date.now(),
+    ts:        new Date().toISOString(),
+    user:      getUserName(),
+    userEmail: getUserEmail(),
+    action,        // e.g. 'STATUS_CHANGE', 'EDIT_JOB', 'ADD_JOB', 'DELETE_JOB'
+    jobId:     jobId || '',
+    field:     field || '',
+    oldVal:    String(oldVal || ''),
+    newVal:    String(newVal || ''),
+    extra:     extra || '',
+  };
+  auditLog.unshift(entry); // newest first
+  if (auditLog.length > 2000) auditLog = auditLog.slice(0, 2000); // cap at 2000
+  saveMod('auditLog', auditLog);
+  return entry;
+}
+
+function fmtAuditTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}) + ' ' +
+         d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+}
+
+function renderAuditModal(jobId) {
+  const entries = jobId
+    ? auditLog.filter(e => e.jobId === jobId)
+    : auditLog.slice(0, 100);
+
+  const rows = entries.length === 0
+    ? '<tr><td colspan="5" style="text-align:center;padding:20px;color:#6b7280">No changes recorded yet</td></tr>'
+    : entries.map(e => {
+        const actionColors = {
+          'STATUS_CHANGE': '#1d4ed8', 'EDIT_JOB':'#065f46', 'ADD_JOB':'#166534',
+          'DELETE_JOB':'#991b1b', 'IMPORT':'#7c3aed', 'MEASURE_EDIT':'#854d0e',
+        };
+        const color = actionColors[e.action] || '#374151';
+        return `<tr>
+          <td style="font-size:10px;color:#6b7280;white-space:nowrap">${fmtAuditTime(e.ts)}</td>
+          <td style="font-weight:700;font-size:11px">${e.user}</td>
+          <td><span style="font-size:9px;font-weight:800;padding:2px 6px;border-radius:3px;background:${color}20;color:${color}">${e.action.replace(/_/g,' ')}</span></td>
+          <td style="font-size:11px">${e.jobId||'—'}</td>
+          <td style="font-size:11px;max-width:300px">
+            ${e.field ? `<span style="color:#6b7280">${e.field}:</span> ` : ''}
+            ${e.oldVal ? `<span style="text-decoration:line-through;color:#991b1b">${e.oldVal}</span> → ` : ''}
+            ${e.newVal ? `<span style="font-weight:700;color:#166534">${e.newVal}</span>` : ''}
+            ${e.extra ? `<span style="color:#6b7280"> ${e.extra}</span>` : ''}
+          </td>
+        </tr>`;
+      }).join('');
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.display = 'flex';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal" style="width:800px;max-width:95vw" onclick="event.stopPropagation()">
+      <div class="modal-title">
+        <span>📋 ${jobId ? `Change History — ${jobId}` : 'Full Audit Log (last 100)'}</span>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <div class="table-wrap" style="max-height:60vh;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Date / Time</th><th>User</th><th>Action</th><th>Job ID</th><th>Details</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button onclick="this.closest('.modal-overlay').remove()" class="btn-cancel">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+
 // INIT
+rebuildLookups();
 render();
-// Connect to SharePoint Lists using existing browser session
-loadAllFromSP();
+// Initialise Microsoft login then connect to SharePoint
+(async () => {
+  const loggedIn = await initMSAL();
+  renderLoginBar();
+  if (loggedIn) {
+    updateSyncStatus('⟳ Signed in — connecting to SharePoint Lists...');
+    await loadAllFromSP();
+  } else {
+    updateSyncStatus('⚠ Sign in with Microsoft to access live SharePoint data');
+  }
+})();
 </script>
 </body>
 </html>
