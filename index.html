@@ -356,6 +356,41 @@ function saveConfig(cfg) {
   localStorage.setItem("sl_config", JSON.stringify(cfg));
   cfg_live = cfg;
   rebuildLookups();
+  // Push to Supabase
+  sbSaveConfig(cfg);
+}
+
+async function sbSaveConfig(cfg) {
+  if (!sbConnected) return;
+  try {
+    // Delete existing config row then insert fresh
+    await fetch(`${SB_URL}/rest/v1/sl_config?id=gt.0`, {
+      method: 'DELETE', headers: SB_HEADERS
+    });
+    await fetch(`${SB_URL}/rest/v1/sl_config`, {
+      method: 'POST',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ config_data: JSON.stringify(cfg) }),
+    });
+    updateSyncStatus('✓ Config saved — ' + new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}));
+  } catch(e) {
+    console.error('Config save error:', e);
+  }
+}
+
+async function loadConfigFromSB() {
+  if (!sbConnected) return null;
+  try {
+    const resp = await fetch(`${SB_URL}/rest/v1/sl_config?select=config_data&limit=1`, {
+      headers: SB_HEADERS
+    });
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    if (rows.length && rows[0].config_data) {
+      return JSON.parse(rows[0].config_data);
+    }
+  } catch(e) { console.error('Config load error:', e); }
+  return null;
 }
 function loadJobs() {
   try {
@@ -3048,6 +3083,14 @@ async function loadAllFromSP() {
   }
   sbConnected = true;
   updateSyncStatus('⟳ Loading live data...');
+
+  // Load config from Supabase first
+  const sbCfg = await loadConfigFromSB();
+  if (sbCfg) {
+    localStorage.setItem("sl_config", JSON.stringify(sbCfg));
+    cfg_live = sbCfg;
+    rebuildLookups();
+  }
 
   try {
     const [j, m, hd, ho, hr, bs, ar] = await Promise.allSettled([
