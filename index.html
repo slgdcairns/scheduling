@@ -940,6 +940,102 @@ function renderConfig(){
 }
 
 
+
+// ── Config helper functions ───────────────────────────────────
+
+function removeEffortRow(i) {
+  cfg_live.doorEfforts.splice(i, 1);
+  renderConfig();
+}
+function addEffortRow() {
+  cfg_live.doorEfforts.push({type:'NEW TYPE', pts:1, hasMeasurements:false, hAdj:0, wAdj:0, notes:''});
+  renderConfig();
+}
+function removeSuburbRow(i) {
+  cfg_live.suburbZones.splice(i, 1);
+  renderConfig();
+}
+function addSuburbRow() {
+  cfg_live.suburbZones.push({suburb:'NEW SUBURB', zone: cfg_live.zoneGroups[0]?.zone || 'CENTRAL'});
+  renderConfig();
+}
+function removeBuilderRow(i) {
+  cfg_live.builders.splice(i, 1);
+  renderConfig();
+}
+function addBuilderRow() {
+  cfg_live.builders.push('NEW BUILDER');
+  renderConfig();
+}
+function addFitter() {
+  cfg_live.fitters.push({id:'fitter'+Date.now(), name:'New Fitter', maxLocal:4, maxAway:4, color:'#6b7280'});
+  renderConfig();
+}
+function removeFitter(i) {
+  if (cfg_live.fitters.length <= 1) { alert('Must have at least one fitter.'); return; }
+  cfg_live.fitters.splice(i, 1);
+  renderConfig();
+}
+
+function saveAllConfig() {
+  const cfg = JSON.parse(JSON.stringify(cfg_live));
+
+  // Branch details
+  cfg.branchName     = document.getElementById('cfg-branchName')?.value.trim() || cfg.branchName;
+  cfg.certifierEmail = document.getElementById('cfg-certEmail')?.value.trim()  || cfg.certifierEmail;
+
+  // Fitters
+  cfg.fitters.forEach((f, i) => {
+    f.name     = document.getElementById(`fc-name-${i}`)?.value     || f.name;
+    f.maxLocal = Number(document.getElementById(`fc-maxLocal-${i}`)?.value) || f.maxLocal;
+    f.maxAway  = Number(document.getElementById(`fc-maxAway-${i}`)?.value)  || f.maxAway;
+    f.color    = document.getElementById(`fc-color-${i}`)?.value    || f.color;
+    f.id       = f.id || f.name.toLowerCase().replace(/\s+/g,'-');
+  });
+
+  // Door efforts — now includes hasMeasurements, hAdj, wAdj, notes
+  cfg.doorEfforts.forEach((d, i) => {
+    d.type            = document.getElementById(`de-type-${i}`)?.value  || d.type;
+    d.pts             = Number(document.getElementById(`de-pts-${i}`)?.value) || d.pts;
+    d.hasMeasurements = document.getElementById(`de-meas-${i}`)?.checked ?? d.hasMeasurements;
+    d.hAdj            = Number(document.getElementById(`de-hadj-${i}`)?.value ?? 0);
+    d.wAdj            = Number(document.getElementById(`de-wadj-${i}`)?.value ?? 0);
+    d.notes           = document.getElementById(`de-notes-${i}`)?.value || '';
+  });
+
+  // Suburb zones
+  cfg.suburbZones.forEach((s, i) => {
+    s.suburb = (document.getElementById(`sz-suburb-${i}`)?.value || s.suburb).toUpperCase().trim();
+    s.zone   = document.getElementById(`sz-zone-${i}`)?.value || s.zone;
+  });
+
+  // Builders
+  cfg.builders = cfg.builders.map((_, i) =>
+    document.getElementById(`bl-${i}`)?.value || cfg.builders[i]
+  ).filter(Boolean);
+
+  saveConfig(cfg);
+  rebuildLookups();
+
+  // Show toast
+  const t = document.getElementById('save-toast');
+  if (t) { t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2500); }
+
+  // Update brand name in header
+  const bn = document.getElementById('brand-name');
+  if (bn) bn.textContent = cfg.branchName || 'STEEL-LINE';
+
+  renderConfig();
+}
+
+function resetConfig() {
+  if (!confirm('Reset all config to defaults? This cannot be undone.')) return;
+  saveConfig(JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  rebuildLookups();
+  renderConfig();
+}
+
+
 function cycleMSStatus(idx) {
   const r = measureJobs[idx];
   const cur = MS_STATUSES.indexOf(r.status);
