@@ -95,7 +95,7 @@
   .btn-save   { background: #1d4ed8; color: #fff; border: none; border-radius: 7px; padding: 9px 20px; font-size: 12px; font-weight: 800; cursor: pointer; flex: 1; }
   .btn-cancel { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 7px; padding: 9px 20px; font-size: 12px; cursor: pointer; }
   .dashboard { padding: 16px; }
-  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
   .kpi { border-radius: 10px; padding: 14px 16px; border: 1px solid; }
   .kpi-val { font-size: 28px; font-weight: 900; }
   .kpi-label { font-size: 11px; font-weight: 600; margin-top: 3px; color: #374151; }
@@ -2633,11 +2633,16 @@ function formatTimeAgo(date) {
   return `${Math.floor(secs/86400)} days ago`;
 }
 
-function updateSyncStatus() {
-  // Called with no args from export/import - just refresh display
+function updateSyncStatus(msg) {
   const el = document.getElementById('sync-status');
-  if (el && el.textContent === 'Connecting to Supabase...') return;
-  // Don't overwrite live status messages
+  if (!el) return;
+  if (msg === undefined || msg === null) return; // safe no-arg call
+  const str = String(msg);
+  el.textContent = str;
+  el.style.color = str.startsWith('✓') ? '#4ade80'
+                 : str.startsWith('⚠') ? '#fbbf24'
+                 : str.startsWith('⟳') ? '#93c3ea'
+                 : '#94a3b8';
 }
 
 function showToast(msg) {
@@ -2968,14 +2973,7 @@ async function syncAllToSP() {
   }
 }
 
-function updateSyncStatus(msg) {
-  const el = document.getElementById('sync-status');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = msg.startsWith('✓') ? '#4ade80'
-                 : msg.startsWith('⚠') ? '#fbbf24'
-                 : '#94a3b8';
-}
+// updateSyncStatus defined above
 
 // renderListsSetup — shown in Config page
 function renderListsSetup() {
