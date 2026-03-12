@@ -2614,7 +2614,8 @@ function handleImportFile(event) {
       if (typeof spConnected !== 'undefined' && spConnected) {
         setTimeout(() => { if (typeof syncAllToSP === 'function') syncAllToSP(); }, 500);
       } else {
-        if (typeof updateSyncStatus === 'function') }
+        if (typeof updateSyncStatus === 'function') updateSyncStatus();
+      }
     } catch(err) {
       alert('Import failed: ' + err.message + '\n\nMake sure you selected a Steel-Line data export file (.json)');
     }
