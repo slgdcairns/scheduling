@@ -3228,23 +3228,35 @@ function goToday() {
 }
 
 function render() {
-  const jc = document.getElementById("job-count");
-  if (jc) jc.textContent = `${jobs.length} jobs`;
-  if      (currentView === "diary")          renderDiary();
-  else if (currentView === "dashboard")      renderDashboard();
-  else if (currentView === "config")         renderConfig();
-  else if (currentView === "measure")        renderMeasure();
-  else if (currentView === "rto")            renderRTO();
-  else if (currentView === "archive")        renderArchive();
-  else if (currentView === "handdeliver")    renderHandDeliver();
-  else if (currentView === "handonsite")     renderHandOnsite();
-  else if (currentView === "handrecords")    renderHandRecords();
-  else if (currentView === "reprun")         renderRepRun();
-  else if (currentView === "certifier")      renderCertifier();
-  else if (currentView === "buildersummary") renderBuilderSummary();
-  else if (currentView === "directory")      renderDirectory();
-  else if (currentView === "stock")          renderStock();
-  renderLegend();
+  try {
+    const jc = document.getElementById("job-count");
+    if (jc) jc.textContent = `${jobs.length} jobs`;
+    console.log('render() called, currentView:', currentView);
+    if      (currentView === "diary")          renderDiary();
+    else if (currentView === "dashboard")      renderDashboard();
+    else if (currentView === "config")         renderConfig();
+    else if (currentView === "measure")        renderMeasure();
+    else if (currentView === "rto")            renderRTO();
+    else if (currentView === "archive")        renderArchive();
+    else if (currentView === "handdeliver")    renderHandDeliver();
+    else if (currentView === "handonsite")     renderHandOnsite();
+    else if (currentView === "handrecords")    renderHandRecords();
+    else if (currentView === "reprun")         renderRepRun();
+    else if (currentView === "certifier")      renderCertifier();
+    else if (currentView === "buildersummary") renderBuilderSummary();
+    else if (currentView === "directory")      renderDirectory();
+    else if (currentView === "stock")          renderStock();
+    renderLegend();
+  } catch(e) {
+    console.error('render() error:', e);
+    document.getElementById('app').innerHTML = `
+      <div style="padding:40px;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">⚠</div>
+        <div style="font-size:16px;font-weight:700;color:#991b1b;margin-bottom:8px">Error loading ${currentView} tab</div>
+        <div style="font-size:12px;color:#6b7280;font-family:monospace;background:#f9fafb;padding:12px;border-radius:6px;margin-bottom:16px;text-align:left">${e.message}</div>
+        <button onclick="currentView='diary';render()" style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-weight:700">← Back to Diary</button>
+      </div>`;
+  }
 }
 
 function renderLegend() {
