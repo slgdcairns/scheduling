@@ -393,6 +393,18 @@ function saveMod(key, data) {
   }
 }
 
+// ── Shared UI helpers ─────────────────────────────────────────
+function escH(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtD(s) {
+  if (!s) return '—';
+  const d = new Date(s + 'T00:00:00');
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleDateString('en-AU', {day:'numeric', month:'short', year:'numeric'});
+}
+
+
 
 // ═══════════════════════════════════════════════════════════════
 // SEED DATA
