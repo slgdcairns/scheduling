@@ -231,8 +231,8 @@
     <div class="form-grid">
       <div class="form-field"><label>Fitter</label><select id="f-fitter"></select></div>
       <div class="form-field"><label>Status</label><select id="f-status"></select></div>
-      <div class="form-field full"><label>Builder / Customer</label><select id="f-customer"></select></div>
-      <div class="form-field full"><label>Site Address</label><input type="text" id="f-address" placeholder="e.g. LOT 123 SMITH STREET"></div>
+      <div class="form-field full"><label>Builder / Customer</label><select id="f-customer" onchange="autoFillFromMeasure()"></select></div>
+      <div class="form-field full"><label>Site Address</label><input type="text" id="f-address" placeholder="e.g. LOT 123 SMITH STREET" onblur="autoFillFromMeasure()"></div>
       <div class="form-field"><label>Suburb</label><select id="f-suburb" onchange="updateZonePreview()"></select></div>
       <div class="form-field"><label>Door Type</label><select id="f-doorType" onchange="updateEffort()"></select></div>
       <div class="form-field full"><label>Door Details</label><input type="text" id="f-doors" placeholder="e.g. 1X STRUTLOK 2260×5284"></div>
@@ -267,19 +267,20 @@ const DEFAULT_CONFIG = {
     { id:"glenn", name:"Glenn", maxLocal:4, maxAway:4, color:"#7c2d12" },
   ],
   doorEfforts: [
-    {type:"STRUTLOK",    pts:2   },
-    {type:"POSTED",      pts:2.5 },
-    {type:"C2 ROLLER",   pts:1   },
-    {type:"STD ROLLER",  pts:0.5 },
-    {type:"CUSTOM",      pts:6   },
-    {type:"STD SECTIONAL",pts:0.5},
-    {type:"PANEL CHANGE",pts:0.5 },
-    {type:"CALLBACK",    pts:0.5 },
-    {type:"SERVICE",     pts:0.5 },
-    {type:"TAKE DOWN",   pts:0.5 },
-    {type:"CW SHUTTER",  pts:2   },
-    {type:"MULTIPLE",    pts:2   },
-    {type:"UNKNOWN",     pts:2   },
+    {type:"STRUTLOK",         pts:2,   hasMeasurements:true,  hAdj:-20, wAdj:-70,  lhrWarning:0,  notes:"Standard sectional. POSTED if LH or RH < 300mm"},
+    {type:"POSTED",           pts:2.5, hasMeasurements:true,  hAdj:-20, wAdj:-70,  lhrWarning:300,notes:"Use when LH or RH clearance < 300mm"},
+    {type:"POSTED ULTRA LOW", pts:2.5, hasMeasurements:true,  hAdj:-20, wAdj:-70,  lhrWarning:0,  notes:"Use when headroom < 300mm"},
+    {type:"C2 ROLLER",        pts:1,   hasMeasurements:true,  hAdj:0,   wAdj:100,  lhrWarning:0,  notes:"Roller — use DLO height, add 100mm to width"},
+    {type:"STD ROLLER",       pts:0.5, hasMeasurements:true,  hAdj:0,   wAdj:100,  lhrWarning:0,  notes:"Standard roller"},
+    {type:"STD SECTIONAL",    pts:0.5, hasMeasurements:true,  hAdj:20,  wAdj:70,   lhrWarning:0,  notes:"Sectional — add 20mm height, 70mm width"},
+    {type:"CUSTOM",           pts:6,   hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Custom order — dimensions manual"},
+    {type:"CW SHUTTER",       pts:2,   hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"CW Window Shutter — custom, no standard deduction"},
+    {type:"PANEL CHANGE",     pts:0.5, hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Panel change only"},
+    {type:"CALLBACK",         pts:0.5, hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Callback visit"},
+    {type:"SERVICE",          pts:0.5, hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Service visit"},
+    {type:"TAKE DOWN",        pts:0.5, hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Take down only"},
+    {type:"MULTIPLE",         pts:2,   hasMeasurements:true,  hAdj:-20, wAdj:-70,  lhrWarning:0,  notes:"Multiple doors — check individually"},
+    {type:"UNKNOWN",          pts:2,   hasMeasurements:false, hAdj:0,   wAdj:0,    lhrWarning:0,  notes:"Unknown type"},
   ],
   zoneGroups: [
     { zone:"SOUTH LOCAL",       canMix:["SOUTH LOCAL","CENTRAL"] },
@@ -827,10 +828,19 @@ function renderConfig(){
     </div>`;
 
   const effortRows=cfg.doorEfforts.map((d,i)=>`
-    <div class="config-list-item">
-      <input type="text" id="de-type-${i}" value="${d.type}" style="flex:2">
-      <input type="number" id="de-pts-${i}" value="${d.pts}" min="0.5" max="20" step="0.5" style="width:70px;flex:none">
-      <span style="font-size:10px;color:#6b7280;flex:none">pts</span>
+    <div class="config-list-item" style="flex-wrap:wrap;gap:4px;padding:8px 0;border-bottom:1px solid #f3f4f6">
+      <input type="text"   id="de-type-${i}" value="${escH(d.type)}" placeholder="Door type name" style="flex:2;min-width:120px">
+      <input type="number" id="de-pts-${i}"  value="${d.pts}" min="0.5" max="20" step="0.5" style="width:55px;flex:none" title="Effort points">
+      <span style="font-size:9px;color:#6b7280;flex:none">pts</span>
+      <label style="font-size:9px;color:#6b7280;display:flex;align-items:center;gap:3px;flex:none" title="Does this door type use DLO measurements?">
+        <input type="checkbox" id="de-meas-${i}" ${d.hasMeasurements?'checked':''}>
+        has dims
+      </label>
+      <input type="number" id="de-hadj-${i}" value="${d.hAdj||0}" style="width:50px;flex:none" title="Height adjustment (negative = subtract, e.g. -20 for strutlok)">
+      <span style="font-size:9px;color:#6b7280;flex:none">H adj</span>
+      <input type="number" id="de-wadj-${i}" value="${d.wAdj||0}" style="width:50px;flex:none" title="Width adjustment (e.g. -70 strutlok, +100 roller)">
+      <span style="font-size:9px;color:#6b7280;flex:none">W adj</span>
+      <input type="text"   id="de-notes-${i}" value="${escH(d.notes||'')}" placeholder="Notes" style="flex:3;min-width:100px;font-size:10px">
       <button class="btn-cfg-del" onclick="removeEffortRow(${i})">✕</button>
     </div>`).join('');
 
@@ -1114,6 +1124,91 @@ function fmtShort(d) {
   return dt.toLocaleDateString('en-AU', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
 }
 
+// ── Door order dimension calculations ─────────────────────────
+// DLO = Door Opening (measured on site)
+// Order dimensions are calculated from DLO based on door type:
+//   STRUTLOK/POSTED:  H − 20mm,  W − 70mm
+//   C2/STD ROLLER:    H same,    W + 100mm
+//   SECTIONAL:        H + 20mm,  W + 70mm
+
+function calcOrderDims(dloH, dloW, doorType) {
+  const h = parseInt(String(dloH||'').replace(/[^0-9]/g,''));
+  const w = parseInt(String(dloW||'').replace(/[^0-9]/g,''));
+  if (isNaN(h) || isNaN(w)) return { orderH: dloH||'', orderW: dloW||'' };
+
+  const dt = (doorType||'').toUpperCase();
+  if (dt.includes('ROLLER') || dt.includes('SHUTTER')) {
+    return { orderH: String(h), orderW: String(w + 100) };
+  }
+  if (dt.includes('SECTIONAL')) {
+    return { orderH: String(h + 20), orderW: String(w + 70) };
+  }
+  // STRUTLOK, POSTED, POSTED ULTRA LOW, default
+  return { orderH: String(h - 20), orderW: String(w - 70) };
+}
+
+// Convenience wrappers for single-value use
+function getDoorTypeConfig(doorType) {
+  const dt = (doorType||'').toUpperCase().trim();
+  return cfg_live.doorEfforts.find(d =>
+    dt.includes(d.type.toUpperCase()) || d.type.toUpperCase() === dt
+  ) || null;
+}
+
+function calcDoorH(dloH, doorType) {
+  const cfg = getDoorTypeConfig(doorType);
+  if (!cfg || !cfg.hasMeasurements) return '';
+  if (!dloH) return '';
+  const h = parseInt(String(dloH).replace(/[^0-9]/g,''));
+  if (isNaN(h)) return '';
+  return String(h + (cfg.hAdj || 0));
+}
+
+function calcDoorW(dloW, doorType) {
+  const cfg = getDoorTypeConfig(doorType);
+  if (!cfg || !cfg.hasMeasurements) return '';
+  if (!dloW) return '';
+  const w = parseInt(String(dloW).replace(/[^0-9]/g,''));
+  if (isNaN(w)) return '';
+  return String(w + (cfg.wAdj || 0));
+}
+
+function checkLHRWarning(lhr, doorType) {
+  if (!lhr) return null;
+  const cfg = getDoorTypeConfig(doorType || 'STRUTLOK');
+  const threshold = cfg?.lhrWarning || 0;
+  if (!threshold) return null;
+  const parts = lhr.replace(/\s/g,'').split('/');
+  if (parts.length < 2) return null;
+  try {
+    const lh = parseInt(parts[0]);
+    const rh = parseInt(parts[parts.length-1]);
+    if (lh < threshold || rh < threshold) {
+      return `LH/RH clearance (${lh}/${rh}mm) under ${threshold}mm — consider POSTED door`;
+    }
+  } catch(e) {}
+  return null;
+}
+
+
+function calcDoorW(dloW, doorType) {
+  return calcOrderDims(0, dloW, doorType).orderW;
+}
+
+// ── Door type recommendation from LHR ────────────────────────
+// LH or RH < 200mm → POSTED required (side clearance too tight for strutlok tracks)
+// Otherwise → STRUTLOK
+function recommendDoorType(lhr) {
+  if (!lhr) return null;
+  const parts = String(lhr).replace(/\s/g,'').split('/');
+  if (parts.length !== 3) return null;
+  const lh = parseInt(parts[0]);
+  const rh = parseInt(parts[2]);
+  if (isNaN(lh) || isNaN(rh)) return null;
+  if (lh < 200 || rh < 200) return 'POSTED';
+  return 'STRUTLOK';
+}
+
 function calcTruckWeek(installDateStr) {
   // Install date → install week Monday
   const installMonday = getMondayOfWeek(installDateStr);
@@ -1178,8 +1273,8 @@ function buildRTOData() {
       measureDate: hasMeasure ? (mJob.measuredDate||'MEASURED') : 'MISSING MEASUREMENTS',
       notes:    j.builderNotes || mJob?.notes || '',
       quote:    mJob?.quote || '',
-      actH:     mJob?.height || '',
-      actW:     mJob?.width  || '',
+      actH:     calcOrderDims(mJob?.height||'', mJob?.width||'', j.doorType).orderH,
+      actW:     calcOrderDims(mJob?.height||'', mJob?.width||'', j.doorType).orderW,
       lhr:      mJob?.lhr || '',
       installDate: j.date,
       effort:   j.effort || '',
@@ -1321,6 +1416,7 @@ function renderMeasure() {
       const origIdx = measureJobs.indexOf(r);
       const sc = MS_COLORS[r.status] || {bg:'#fff',c:'#374151'};
       const jobIdBadge = r.jobId ? `<span style="font-size:9px;font-weight:800;background:#f0f9ff;color:#0369a1;padding:2px 6px;border-radius:3px;border:1px solid #bae6fd">${r.jobId}</span>` : '<span style="font-size:9px;color:#d1d5db">—</span>';
+      const lhrWarn = checkLHRWarning(r.lhr, 'STRUTLOK'); // warn if LHR suggests posted
       const hasInstallDate = jobs.some(j => {
         // Check if this measure job has a matching job in the diary
         return j.customer === r.customer &&
@@ -1337,7 +1433,7 @@ function renderMeasure() {
         <td style="font-size:11px">${escH(r.colour)}</td>
         <td style="text-align:center;font-weight:700">${r.height||'—'}</td>
         <td style="text-align:center;font-weight:700">${r.width||'—'}</td>
-        <td style="font-size:10px">${escH(r.lhr)}</td>
+        <td style="font-size:10px">${escH(r.lhr)}${(()=>{const rec=recommendDoorType(r.lhr);return rec==='POSTED'?'<span style="font-size:8px;background:#fef9c3;color:#854d0e;padding:1px 4px;border-radius:2px;font-weight:800;margin-left:3px">POSTED</span>':''})()}</td>
         <td style="font-size:10px">${fmtD(r.measuredDate)}</td>
         <td style="font-size:10px">${escH(r.quote)}</td>
         <td>
@@ -3248,6 +3344,109 @@ function openAdd(date) {
   document.getElementById('zone-preview').style.display = 'none';
   document.getElementById('modal').dataset.date = date;
   document.getElementById('modal').style.display = 'flex';
+
+  // Wire up customer change to auto-fill from measure sheet
+  const custEl = document.getElementById('f-customer');
+  const addrEl = document.getElementById('f-address');
+  function tryAutoFill() {
+    const customer = custEl.value.toUpperCase().trim();
+    const address  = addrEl.value.toUpperCase().trim();
+    if (!customer) return;
+    // Search measure sheet for matching job
+    const match = measureJobs.find(m =>
+      m.customer.toUpperCase().trim() === customer &&
+      (!address || m.address.toUpperCase().trim() === address)
+    ) || measureJobs.find(m => m.customer.toUpperCase().trim() === customer);
+    if (!match) return;
+    // Auto-fill address+suburb if not set
+    if (!addrEl.value) addrEl.value = match.address;
+    if (!document.getElementById('f-suburb').value) document.getElementById('f-suburb').value = match.suburb;
+    // Auto-fill door details from measure sheet
+    const h = match.height || '';
+    const w = match.width  || '';
+    const lhr = match.lhr  || '';
+    const dt = match.doorType || guessDoorType(match.profile || '');
+    // Build door description string
+    const doorDesc = [
+      dt ? `1X ${dt}` : '',
+      (h && w) ? `${h}×${w}` : '',
+      lhr ? `LHR: ${lhr}` : '',
+    ].filter(Boolean).join(' ');
+    if (doorDesc) document.getElementById('f-doors').value = doorDesc;
+    if (dt && document.getElementById('f-doorType')) {
+      document.getElementById('f-doorType').value = dt;
+      updateEffort();
+    }
+    if (match.sage) document.getElementById('f-sage').value = match.sage;
+    // Store jobId link
+    document.getElementById('modal').dataset.measureJobId = match.jobId || '';
+    // Show preview
+    updateZonePreview();
+    showToast(`✓ Auto-filled from Measure Sheet — ${match.jobId}`);
+  }
+  custEl.addEventListener('change', tryAutoFill);
+  addrEl.addEventListener('blur',   tryAutoFill);
+}
+
+// Auto-fill diary from Measure Sheet when customer/address entered
+function autoFillFromMeasure() {
+  const custEl = document.getElementById('f-customer');
+  const addrEl = document.getElementById('f-address');
+  if (!custEl || !addrEl) return;
+  const customer = custEl.value.trim().toUpperCase();
+  const address  = addrEl.value.trim().toUpperCase();
+  if (!customer) return;
+
+  const match = (measureJobs||[]).find(m =>
+    m.customer.toUpperCase().trim() === customer &&
+    (address ? m.address.toUpperCase().trim() === address : true)
+  ) || (measureJobs||[]).find(m =>
+    m.customer.toUpperCase().trim() === customer
+  );
+
+  if (!match) return;
+
+  if (match.suburb && !document.getElementById('f-suburb').value)
+    document.getElementById('f-suburb').value = match.suburb;
+
+  if (!document.getElementById('f-doors').value && (match.height || match.profile)) {
+    const parts = [];
+    if (match.height && match.width) parts.push(`${match.height}x${match.width}`);
+    if (match.profile) parts.push(match.profile);
+    if (match.colour)  parts.push(match.colour);
+    document.getElementById('f-doors').value = parts.join(' | ');
+  }
+
+  updateZonePreview();
+  const preview = document.getElementById('zone-preview');
+  if (preview) {
+    preview.style.display = 'block';
+    const zone = getZone(match.suburb||'');
+    const jobIdBadge = match.jobId ? `<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">${match.jobId}</span>` : '';
+    const rec = recommendDoorType(match.lhr);
+    const doorRec = rec ? `<span style="background:${rec==='POSTED'?'#fef9c3':'#dcfce7'};color:${rec==='POSTED'?'#854d0e':'#166534'};padding:1px 6px;border-radius:3px;font-size:10px;font-weight:800;margin-left:6px">→ ${rec} recommended${rec==='POSTED'?' (LH/RH < 200mm)':''}</span>` : '';
+    preview.innerHTML = `✓ Matched Measure Sheet ${jobIdBadge} — ${match.profile||''} ${match.colour||''} ${match.height||'?'}×${match.width||'?'} | ${zoneTag(zone)}${doorRec}`;
+    // Auto-set door type if recommended
+    if (rec) {
+      const dtEl = document.getElementById('f-doorType');
+      if (dtEl) {
+        const opts = Array.from(dtEl.options).map(o=>o.value.toUpperCase());
+        const match2 = opts.findIndex(o => o.includes(rec));
+        if (match2 >= 0) dtEl.selectedIndex = match2;
+        updateEffort();
+      }
+    }
+  }
+}
+
+
+function guessDoorType(profile) {
+  const p = (profile||'').toUpperCase();
+  if (p.includes('STRUTLOK') || p.includes('SLIMLINE') || p.includes('FLATLINE')) return 'STRUTLOK';
+  if (p.includes('POSTED'))    return 'POSTED';
+  if (p.includes('ROLLER'))    return 'C2 ROLLER';
+  if (p.includes('SECTIONAL')) return 'STD SECTIONAL';
+  return 'STRUTLOK'; // default
 }
 
 function openEdit(id) {
@@ -3305,15 +3504,19 @@ function saveJob() {
   } else {
     data.id   = nextId++;
     data.date = document.getElementById('modal').dataset.date;
-    // Auto-link to measure job if exists
+    // Auto-link to measure job
     const key = (data.customer.toUpperCase().trim() + '|' + data.address.toUpperCase().trim());
-    const linked = measureJobs.find(m => (m.customer.toUpperCase().trim()+'|'+m.address.toUpperCase().trim()) === key);
+    const linked = (measureJobs||[]).find(m => (m.customer.toUpperCase().trim()+'|'+m.address.toUpperCase().trim()) === key);
     data.jobId = linked ? linked.jobId : `D${data.id}`;
     jobs.push(data);
     recordAudit('ADD_JOB', data.jobId, '', '', '', data.customer);
     spSaveRecord('jobs', data);
+    // Auto-create/update Builder Summary entry
+    autoUpdateBuilderSummary(data);
   }
   persistJobs();
+  // Auto-create/update Builder Summary entry
+  autoUpdateBuilderSummary(editingJobId ? jobs.find(j=>j.id===editingJobId) : jobs[jobs.length-1]);
   closeModalDirect();
   render();
 }
@@ -3433,8 +3636,146 @@ function renderFitterRunSheetButtons(weekStart) {
 }
 
 
+
+// ── Auto-update Builder Summary when job is saved ────────────
+function autoUpdateBuilderSummary(job) {
+  if (!job) return;
+  if (!job.customer || !job.address) return;
+
+  // Find existing entry
+  const key = (job.customer.toUpperCase().trim() + '|' + job.address.toUpperCase().trim());
+  let entry = builderSummary.find(b =>
+    (b.builder.toUpperCase().trim() + '|' + b.address.toUpperCase().trim()) === key
+  );
+
+  // Get measure sheet data for this job
+  const measure = measureJobs.find(m =>
+    m.customer.toUpperCase().trim() === job.customer.toUpperCase().trim() &&
+    m.address.toUpperCase().trim()  === job.address.toUpperCase().trim()
+  );
+
+  if (entry) {
+    // Update existing
+    entry.status       = job.status;
+    entry.slBookedDate = job.date || entry.slBookedDate;
+    entry.lastUpdated  = new Date().toISOString().split('T')[0];
+    if (measure) {
+      entry.profile  = measure.profile  || entry.profile;
+      entry.colour   = measure.colour   || entry.colour;
+      entry.flag     = !measure.height || !measure.width ? 'MISSING MEASUREMENTS' : '';
+    }
+    spSaveRecord('builderSummary', entry);
+  } else {
+    // Create new entry
+    const newEntry = {
+      jobId:         job.jobId || '',
+      builder:       job.customer,
+      po:            measure?.po || '',
+      address:       job.address,
+      suburb:        job.suburb || '',
+      status:        job.status,
+      builderReqDate:'',
+      slBookedDate:  job.date || '',
+      builderNewDate:'',
+      builderNotes:  job.builderNotes || '',
+      flag:          measure && (!measure.height || !measure.width) ? 'MISSING MEASUREMENTS' : '',
+      profile:       measure?.profile  || '',
+      colour:        measure?.colour   || '',
+      lastUpdated:   new Date().toISOString().split('T')[0],
+      send:          'YES',
+    };
+    builderSummary.push(newEntry);
+    spSaveRecord('builderSummary', newEntry);
+  }
+  saveMod('builderSummary', builderSummary);
+}
+
+// ── Builder Summary filter — active + completed within 7 days ─
+function getBuilderSummaryDisplay() {
+  const now = new Date();
+  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  return builderSummary.filter(b => {
+    const status = (b.status || '').toUpperCase();
+    // Always show active jobs
+    if (['REQUESTED','CONFIRMED','PENDING RESCHEDULE','RESCHEDULED','FUTILE'].includes(status)) return true;
+    // Show completed jobs from last 7 days only
+    if (status === 'COMPLETED') {
+      const bookedDate = b.slBookedDate || b.lastUpdated || '';
+      return bookedDate >= weekAgo;
+    }
+    return false;
+  });
+}
+
+
+// ── Auto-update Builder Summary when diary job is saved ──────
+function autoUpdateBuilderSummary(job) {
+  if (!builderSummary) return;
+  // Find existing entry by customer + address
+  const existing = builderSummary.find(b =>
+    b.builder.toUpperCase().trim() === (job.customer||'').toUpperCase().trim() &&
+    b.address.toUpperCase().trim() === (job.address||'').toUpperCase().trim()
+  );
+
+  // Get measure details if available
+  const mKey = (job.customer||'').toUpperCase().trim() + '|' + (job.address||'').toUpperCase().trim();
+  const measure = (measureJobs||[]).find(m =>
+    (m.customer||'').toUpperCase().trim()+'|'+(m.address||'').toUpperCase().trim() === mKey
+  );
+
+  const entry = existing || {};
+  entry.builder       = job.customer || entry.builder || '';
+  entry.po            = measure?.po || entry.po || '';
+  entry.address       = job.address || entry.address || '';
+  entry.suburb        = job.suburb  || entry.suburb  || '';
+  entry.status        = mapJobStatusToBS(job.status);
+  entry.slBookedDate  = job.date    || entry.slBookedDate || '';
+  entry.profile       = measure?.profile || entry.profile || '';
+  entry.colour        = measure?.colour  || entry.colour  || '';
+  entry.jobId         = job.jobId || entry.jobId || '';
+  entry.lastUpdated   = new Date().toISOString().split('T')[0];
+  entry.send          = entry.send || 'YES';
+  entry.flag          = !measure ? 'MISSING MEASURE' : (entry.flag || '');
+
+  if (!existing) {
+    builderSummary.push(entry);
+  }
+  saveMod('builderSummary', builderSummary);
+  spSaveRecord('builderSummary', entry);
+}
+
+function mapJobStatusToBS(status) {
+  const map = {
+    'REQUESTED':         'INSTALL BOOKED',
+    'CONFIRMED':         'INSTALL CONFIRMED',
+    'COMPLETED':         'COMPLETED',
+    'FUTILE':            'FUTILE VISIT',
+    'RESCHEDULED':       'RESCHEDULED',
+    'PENDING RESCHEDULE':'AWAITING UPDATE',
+  };
+  return map[status] || status;
+}
+
+// ── Builder Summary — drop COMPLETED jobs older than 7 days ──
+function cleanBuilderSummary() {
+  if (!builderSummary) return;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 7);
+  const before = builderSummary.length;
+  builderSummary = builderSummary.filter(b => {
+    if (b.status !== 'COMPLETED') return true;
+    if (!b.lastUpdated) return true;
+    return new Date(b.lastUpdated) >= cutoff;
+  });
+  if (builderSummary.length < before) {
+    saveMod('builderSummary', builderSummary);
+  }
+}
+
 // INIT
 rebuildLookups();
+cleanBuilderSummary(); // drop completed jobs > 7 days old
 // Show loading state immediately
 const appEl = document.getElementById('app');
 if (appEl) appEl.innerHTML = '<div style="padding:60px;text-align:center"><div style="font-size:32px;margin-bottom:12px">⟳</div><div style="font-size:14px;color:#6b7280;font-weight:600">Connecting to database...</div></div>';
