@@ -2654,7 +2654,7 @@ function showToast(msg) {
 // ═══════════════════════════════════════════════════════════════
 
 const SB_URL = 'https://dmrbrcezogeoziafhzxj.supabase.co';
-const SB_KEY = 'sb_publishable_7rxEqG8jY5LEXIKlzZpw9g_nc2DpC8w';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmJyY2V6b2dlb3ppYWZoenhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyODAxNTgsImV4cCI6MjA4ODg1NjE1OH0.9W9psU_7DEH-R43jF9viiHM65O2VfEppaQtKp67PZoU';
 
 const SB_HEADERS = {
   'Content-Type':  'application/json',
@@ -2820,17 +2820,31 @@ async function checkSBConnection() {
     const resp = await fetch(`${SB_URL}/rest/v1/sl_jobs?select=id&limit=1`, {
       headers: SB_HEADERS,
     });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      console.error('Supabase check failed:', resp.status, txt);
+    }
     return resp.ok;
-  } catch(e) { return false; }
+  } catch(e) {
+    console.error('Supabase connection error:', e);
+    return false;
+  }
 }
 
 // ── Load all data from Supabase ───────────────────────────────
 async function loadAllFromSP() {
   updateSyncStatus('⟳ Connecting to Supabase...');
-  const ok = await checkSBConnection();
+  let ok = false;
+  try {
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+    ok = await Promise.race([checkSBConnection(), timeoutPromise]);
+  } catch(e) {
+    console.error('Connection timeout or error:', e);
+    ok = false;
+  }
   if (!ok) {
     sbConnected = false;
-    updateSyncStatus('⚠ Could not connect to database — using local data');
+    updateSyncStatus('⚠ Could not connect — using local data (check internet connection)');
     return;
   }
   sbConnected = true;
