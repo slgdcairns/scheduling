@@ -191,7 +191,7 @@
 <div id="login-bar" style="background:#1e293b;border-bottom:1px solid #1e3a5f;padding:5px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px;">
   <span style="color:#64748b;font-size:11px">Initialising...</span>
 </div>
-<div id="signin-prompt" style="display:none;background:linear-gradient(135deg,#1e3a5f,#1e293b);border-bottom:3px solid #3b82f6;padding:20px 24px;text-align:center">
+<div id="signin-prompt" style="display:block;background:linear-gradient(135deg,#1e3a5f,#1e293b);border-bottom:3px solid #3b82f6;padding:20px 24px;text-align:center">
   <div style="max-width:500px;margin:0 auto">
     <div style="font-size:28px;margin-bottom:8px">🔐</div>
     <div style="font-size:18px;font-weight:900;color:#f8fafc;margin-bottom:6px">Sign in to Steel-Line Scheduling</div>
@@ -202,7 +202,7 @@
     <div style="margin-top:12px;font-size:11px;color:#475569">Use your @steel-line.com.au account</div>
   </div>
 </div>
-<div id="sync-bar" style="background:#1e293b;border-bottom:2px solid #334155;padding:6px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap;">
+<div id="sync-bar" style="display:none;background:#1e293b;border-bottom:2px solid #334155;padding:6px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;flex-wrap:wrap;">
   <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
     <span style="color:#94a3b8;font-weight:700;white-space:nowrap">💾 SYNC:</span>
     <span id="sync-status" style="color:#64748b;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Loading...</span>
@@ -214,8 +214,8 @@
   </div>
 </div>
 <div id="alert-banner" class="alert-banner" style="display:none;"></div>
-<div id="app"></div>
-<div class="legend" id="legend"></div>
+<div id="app" style="display:none"></div>
+<div class="legend" id="legend" style="display:none"></div>
 <div class="save-toast" id="save-toast">✓ Settings saved</div>
 <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)">
 
@@ -3390,7 +3390,11 @@ function renderLoginBar() {
   const appEl  = document.getElementById('app');
   if (!bar) return;
 
+  const syncBar = document.getElementById('sync-bar');
+  const legendEl = document.getElementById('legend');
   if (isSignedIn()) {
+    if (syncBar)  syncBar.style.display  = '';
+    if (legendEl) legendEl.style.display = '';
     // Show compact signed-in bar
     bar.innerHTML = `
       <div style="display:flex;align-items:center;gap:10px">
@@ -3416,8 +3420,10 @@ function renderLoginBar() {
       </div>
       <button onclick="signIn()" style="background:#3b82f6;color:#fff;border:none;border-radius:5px;padding:5px 16px;font-size:11px;font-weight:800;cursor:pointer">🔐 Sign in with Microsoft</button>`;
     bar.style.borderBottom = '1px solid #92400e';
-    if (prompt) prompt.style.display = 'block';
-    if (appEl)  appEl.style.display  = 'none';
+    if (prompt)   prompt.style.display   = 'block';
+    if (appEl)    appEl.style.display    = 'none';
+    if (syncBar)  syncBar.style.display  = 'none';
+    if (legendEl) legendEl.style.display = 'none';
   }
 }
 
